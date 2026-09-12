@@ -22,6 +22,43 @@
 
 .tripcard{background:var(--card);border-radius:20px;box-shadow:var(--shadow);padding:16px;border:1px solid #eef1f5}.triphead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.tripmeta{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.softpill{background:#f2f4f7;border-radius:999px;padding:6px 9px;font-size:11px;color:#475467}.venuegrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.venuecard{background:var(--card);box-shadow:var(--shadow);border-radius:16px;padding:13px}.yearhero{background:linear-gradient(135deg,#312e81,#4f46e5);color:#fff;border-radius:22px;padding:18px;box-shadow:var(--shadow)}.yearhero b{font-size:28px;display:block;margin-top:4px}.backupnote{background:#ecfdf3;color:#067647;border-radius:14px;padding:11px 12px;font-size:12px;margin-top:12px}.navin{grid-template-columns:repeat(5,1fr)}
 @media(max-width:430px){.venuegrid{grid-template-columns:1fr}.nav button{font-size:10px}.nav button span{font-size:19px}}
+
+/* v1.4.4 — iPhone bottom nav flush to screen edge */
+.app{
+  bottom:64px !important;
+}
+.nav{
+  position:fixed !important;
+  left:0 !important;
+  right:0 !important;
+  bottom:0 !important;
+  height:64px !important;
+  min-height:64px !important;
+  max-height:64px !important;
+  padding:0 !important;
+  margin:0 !important;
+  overflow:hidden !important;
+}
+.navin{
+  height:64px !important;
+  min-height:64px !important;
+  margin:0 auto !important;
+  align-items:stretch !important;
+}
+.nav button{
+  height:64px !important;
+  min-height:64px !important;
+  padding:6px 3px 4px !important;
+  margin:0 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+.fab{
+  bottom:76px !important;
+}
+
 </style>
 </head>
 <body>
@@ -165,14 +202,14 @@ window.openQRZoom=openQRZoom;window.closeQRZoom=closeQRZoom;
 window.showDetail=showDetail;window.duplicateTicket=id=>{let x=data.find(v=>v.id===id);if(!x)return;let c={...x,id:crypto.randomUUID(),name:x.name+'（副本）',status:'upcoming',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};data.push(c);persist();$('#detailDlg').close();showDetail(c.id)};window.downloadICS=id=>{let x=data.find(v=>v.id===id);if(!x||!x.date)return alert('這張票券還沒有日期時間');let f=d=>new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z'),start=f(x.date),end=f(x.endDate||new Date(new Date(x.date).getTime()+2*3600000)),ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TicketBox//ZH-TW\r\nBEGIN:VEVENT\r\nUID:${x.id}@ticketbox\r\nDTSTART:${start}\r\nDTEND:${end}\r\nSUMMARY:${String(x.name).replace(/[,;]/g,' ')}\r\nLOCATION:${String(x.place||'').replace(/[,;]/g,' ')}\r\nDESCRIPTION:${String(x.seat||'').replace(/[,;]/g,' ')}\r\nEND:VEVENT\r\nEND:VCALENDAR`;let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));a.download=(x.name||'TicketBox')+'.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};window.shareTicket=async id=>{let x=data.find(v=>v.id===id);if(!x)return;let text=`${x.name}\n${fmtDate(x.date)}${x.place?'\n'+x.place:''}${x.seat?'\n'+x.seat:''}`;try{if(navigator.share)await navigator.share({title:x.name,text});else{await navigator.clipboard.writeText(text);alert('已複製可分享資訊（不含 QR Code 與票號）')}}catch(e){}};window.toggleUsed=id=>{let x=data.find(v=>v.id===id);if(!x)return;x.status=effectiveStatus(x)==='used'?'upcoming':'used';x.updatedAt=new Date().toISOString();persist();$('#detailDlg').close();showDetail(id)};window.deleteTicket=id=>{if(confirm('確定要刪除這張票券？')){data=data.filter(x=>x.id!==id);persist();$('#detailDlg').close()}};
 $('#add').onclick=()=>openEdit();$('#settingsBtn').onclick=()=>{$('#privacySetting').checked=settings.privacy;let snap=localStorage.getItem(SNAPKEY);$('#migrationStatus').textContent=snap?'已建立升級前快照・舊票券保留中':'目前無舊資料可建立快照';$('#settingsDlg').showModal()};$$('[data-close]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close).close());
 $('#search').oninput=renderTickets;$('#filterToggle').onclick=()=>$('#filterBar').classList.toggle('hidden');$$('[data-quick]').forEach(b=>b.onclick=()=>{quickMode=quickMode===b.dataset.quick?'':b.dataset.quick;$$('[data-quick]').forEach(z=>z.style.outline=z.dataset.quick===quickMode?'2px solid #111827':'');renderTickets()});
-$$('.nav button').forEach(b=>b.onclick=()=>{$$('.nav button').forEach(z=>z.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#view'+b.dataset.view).classList.add('active');if(b.dataset.view==='Calendar')renderCalendar();if(b.dataset.view==='Trips')renderTrips();if(b.dataset.view==='Stats')renderStats();if(b.dataset.view==='Memories')renderMemories();const app=document.querySelector('.app');if(app)app.scrollTo({top:0,left:0,behavior:'instant'});requestAnimationFrame(syncNavHeight)});
+$$('.nav button').forEach(b=>b.onclick=()=>{$$('.nav button').forEach(z=>z.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#view'+b.dataset.view).classList.add('active');if(b.dataset.view==='Calendar')renderCalendar();if(b.dataset.view==='Trips')renderTrips();if(b.dataset.view==='Stats')renderStats();if(b.dataset.view==='Memories')renderMemories();const app=document.querySelector('.app');if(app)app.scrollTo({top:0,left:0,behavior:'instant'});});
 $('#prevMonth').onclick=()=>{calCursor=new Date(calCursor.getFullYear(),calCursor.getMonth()-1,1);renderCalendar()};$('#nextMonth').onclick=()=>{calCursor=new Date(calCursor.getFullYear(),calCursor.getMonth()+1,1);renderCalendar()};
 $('#privacySetting').onchange=e=>{settings.privacy=e.target.checked;saveSettings()};
 $('#exportBtn').onclick=()=>{let payload={app:'TicketBox',version:'1.2',exportedAt:new Date().toISOString(),data,settings},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TicketBox-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 $('#importInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());let incoming=Array.isArray(obj)?obj:obj.data;if(!Array.isArray(incoming))throw new Error();if(confirm(`找到 ${incoming.length} 張票券。要覆蓋目前資料嗎？\n按「取消」將改為合併。`))data=incoming;else{let ids=new Set(data.map(x=>x.id));data=[...data,...incoming.filter(x=>!ids.has(x.id))]}persist();alert('匯入完成');$('#settingsDlg').close()}catch(err){alert('這不是有效的 TicketBox 備份檔')}};
 $('#clearBtn').onclick=()=>{if(confirm('確定清除所有 TicketBox 資料？此動作無法復原，建議先匯出備份。')){data=[];persist();$('#settingsDlg').close()}};
 function syncNavHeight(){}
-syncNavHeight();
+
 window.addEventListener('resize',syncNavHeight,{passive:true});
 window.addEventListener('orientationchange',()=>setTimeout(syncNavHeight,120),{passive:true});
 renderAll();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
