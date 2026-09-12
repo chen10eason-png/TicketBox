@@ -1,4 +1,4 @@
-const CACHE='ticketbox-v141';
+const CACHE='ticketbox-v1.4.2-fixed-shell';
 const ASSETS=[
   './','./index.html','./manifest.webmanifest',
   './icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png',
