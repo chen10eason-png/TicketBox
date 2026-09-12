@@ -1,4 +1,4 @@
-const CACHE='ticketbox-v13-icon-20260912';
+const CACHE='ticketbox-v14-editor-20260912';
 const ASSETS=[
   './','./index.html','./manifest.webmanifest',
   './icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png',
