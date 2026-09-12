@@ -1,0 +1,31 @@
+{
+  "name": "TicketBox 我的票夾",
+  "short_name": "TicketBox",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b4fb6",
+  "theme_color": "#0b4fb6",
+  "lang": "zh-Hant",
+  "description": "票券收藏、行程月曆、回憶與統計工具",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
