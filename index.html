@@ -23,21 +23,23 @@
 .tripcard{background:var(--card);border-radius:20px;box-shadow:var(--shadow);padding:16px;border:1px solid #eef1f5}.triphead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.tripmeta{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.softpill{background:#f2f4f7;border-radius:999px;padding:6px 9px;font-size:11px;color:#475467}.venuegrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.venuecard{background:var(--card);box-shadow:var(--shadow);border-radius:16px;padding:13px}.yearhero{background:linear-gradient(135deg,#312e81,#4f46e5);color:#fff;border-radius:22px;padding:18px;box-shadow:var(--shadow)}.yearhero b{font-size:28px;display:block;margin-top:4px}.backupnote{background:#ecfdf3;color:#067647;border-radius:14px;padding:11px 12px;font-size:12px;margin-top:12px}.navin{grid-template-columns:repeat(5,1fr)}
 @media(max-width:430px){.venuegrid{grid-template-columns:1fr}.nav button{font-size:10px}.nav button span{font-size:19px}}
 
-/* v1.4.4 — iPhone bottom nav flush to screen edge */
+/* v1.4.5 — use the real iPhone screen gap when launched from Home Screen */
+:root{--ios-extra-bottom:0px}
 .app{
-  bottom:64px !important;
+  bottom:calc(64px - var(--ios-extra-bottom)) !important;
 }
 .nav{
   position:fixed !important;
   left:0 !important;
   right:0 !important;
-  bottom:0 !important;
+  bottom:calc(-1 * var(--ios-extra-bottom)) !important;
+  width:100% !important;
   height:64px !important;
   min-height:64px !important;
   max-height:64px !important;
   padding:0 !important;
   margin:0 !important;
-  overflow:hidden !important;
+  overflow:visible !important;
 }
 .navin{
   height:64px !important;
@@ -48,7 +50,7 @@
 .nav button{
   height:64px !important;
   min-height:64px !important;
-  padding:6px 3px 4px !important;
+  padding:5px 3px 3px !important;
   margin:0 !important;
   display:flex !important;
   flex-direction:column !important;
@@ -56,9 +58,19 @@
   justify-content:center !important;
 }
 .fab{
-  bottom:76px !important;
+  bottom:calc(76px - var(--ios-extra-bottom)) !important;
 }
-
+/* Explicit QR visibility control */
+.code-toggle-btn{
+  width:100%;
+  border:0;
+  border-radius:12px;
+  padding:11px 12px;
+  margin-top:8px;
+  background:#f2f4f7;
+  color:#344054;
+  font-weight:700;
+}
 </style>
 </head>
 <body>
@@ -160,8 +172,8 @@
     <div class="setting"><div><b>升級保護</b><div class="muted" id="migrationStatus">檢查中…</div></div><span>🛡️</span></div>
   </div>
   <div class="actions"><button id="clearBtn" class="danger">清除所有資料</button></div>
-  <div class="backupnote">✅ TicketBox v1.4.1 會沿用 v1.1 的資料庫 key，更新網站檔案時不會主動刪除舊票券。第一次啟動新版也會保留一份升級前快照。</div>
-  <p class="muted" style="line-height:1.6">TicketBox v1.4.1・新增 QR / 條碼全螢幕放大顯示，並強化底部導覽列固定定位。若清除 Safari 網站資料或更換網域，本機資料仍可能消失，建議定期匯出備份。</p>
+  <div class="backupnote">✅ TicketBox v1.4.5 會沿用 v1.1 的資料庫 key，更新網站檔案時不會主動刪除舊票券。第一次啟動新版也會保留一份升級前快照。</div>
+  <p class="muted" style="line-height:1.6">TicketBox v1.4.5・新增 QR / 條碼全螢幕放大顯示，並強化底部導覽列固定定位。若清除 Safari 網站資料或更換網域，本機資料仍可能消失，建議定期匯出備份。</p>
 </div></dialog>
 
 <script>
@@ -195,7 +207,40 @@ function setPreview(sel,val){let el=$(sel);if(val){el.style.display='block';el.s
 async function fileToData(file,max=1200,quality=.78){return new Promise((resolve,reject)=>{let r=new FileReader();r.onload=()=>{let img=new Image();img.onload=()=>{let scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',quality))};img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
 function setEditTab(name){document.querySelectorAll('.editor-tab').forEach(b=>b.classList.toggle('active',b.dataset.editTab===name));document.querySelectorAll('.editor-page').forEach(p=>p.classList.toggle('active',p.dataset.editPage===name));let page=document.querySelector(`[data-edit-page="${name}"]`);if(page)page.scrollTop=0}document.querySelectorAll('.editor-tab').forEach(b=>b.onclick=()=>setEditTab(b.dataset.editTab));document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.pick).click());function syncMediaWraps(){$('#coverWrap').classList.toggle('has-media',!!coverData);$('#codeWrap').classList.toggle('has-media',!!codeImageData)}async function handleCoverInput(e){if(e.target.files[0]){coverData=await fileToData(e.target.files[0],1400,.75);setPreview('#coverPreview',coverData);syncMediaWraps()}e.target.value=''}async function handleCodeInput(e){if(e.target.files[0]){codeImageData=await fileToData(e.target.files[0],1800,.88);setPreview('#codePreview',codeImageData);syncMediaWraps()}e.target.value=''}['coverCamera','coverLibrary','coverFile'].forEach(id=>$('#'+id).onchange=handleCoverInput);['codeCamera','codeLibrary','codeFile'].forEach(id=>$('#'+id).onchange=handleCodeInput);$('#removeCover').onclick=()=>{coverData='';setPreview('#coverPreview','');syncMediaWraps()};$('#removeCode').onclick=()=>{codeImageData='';setPreview('#codePreview','');syncMediaWraps()};
 $('#form').onsubmit=e=>{e.preventDefault();let id=$('#editId').value||crypto.randomUUID(), old=data.find(x=>x.id===id);let item={id,type:$('#type').value,status:$('#status').value,name:$('#name').value.trim(),date:$('#date').value,endDate:$('#endDate').value,place:$('#place').value.trim(),seat:$('#seat').value.trim(),price:$('#price').value,code:$('#code').value.trim(),tripName:$('#tripName').value.trim(),companions:$('#companions').value.trim(),tags:$('#tags').value.trim(),favorite:$('#favorite').checked,cover:coverData,codeImage:codeImageData,note:$('#note').value.trim(),createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};if(old)data=data.map(x=>x.id===id?item:x);else data.push(item);persist();$('#form').reset();$('#editDlg').close()};
-function showDetail(id){let x=data.find(v=>v.id===id);if(!x)return;let st=effectiveStatus(x), hasCode=!!x.codeImage;$('#detailContent').innerHTML=`<div class="detailcover" ${x.cover?`style="background-image:url('${x.cover}')"`:''}>${x.cover?'':icons[x.type]||'🎟️'}</div><div class="detailbody ${settings.privacy?'privacy':''}" id="detailBody"><div style="display:flex;justify-content:space-between;gap:10px"><div><h2>${x.favorite?'❤️ ':''}${esc(x.name)}</h2><div class="muted">${esc(x.type)}・${statusText(st)}</div></div><button class="close" onclick="detailDlg.close()">×</button></div><div class="detailgrid"><div class="detailcell">日期時間<b>${fmtDate(x.date)}</b></div><div class="detailcell">場館 / 地點<b>${esc(x.place||'—')}</b></div><div class="detailcell">座位 / 車次<b>${esc(x.seat||'—')}</b></div><div class="detailcell">票價<b>${x.price?'NT$ '+Number(x.price).toLocaleString():'—'}</b></div></div>${x.tripName?`<div class="muted" style="margin-top:12px">🧳 ${esc(x.tripName)}</div>`:''}${x.companions?`<div class="muted" style="margin-top:6px">👥 ${esc(x.companions)}</div>`:''}${x.tags?`<div class="muted" style="margin-top:6px">🏷️ ${esc(x.tags)}</div>`:''}${x.note?`<div style="margin-top:14px;line-height:1.6">${esc(x.note).replace(/\n/g,'<br>')}</div>`:''}${hasCode?`<img class="codeimg" id="detailCode" src="${x.codeImage}" alt="票券 QR 或條碼"><div class="privacyHint" id="privacyHint">${settings.privacy?'點一下圖片顯示 / 隱藏票碼':'票碼已顯示'}</div><button class="code-zoom-btn" type="button" onclick="openQRZoom('${x.id}')">🔍 放大顯示 QR / 條碼</button>`:''}<div class="actions">${x.place?`<button class="secondary" onclick="openMap('${encodeURIComponent(x.place)}')">導航</button>`:''}<button class="secondary" onclick="downloadICS('${x.id}')">加入行事曆</button><button class="secondary" onclick="shareTicket('${x.id}')">分享</button></div><div class="actions"><button class="secondary" onclick="detailDlg.close();openEdit('${x.id}')">編輯</button><button class="secondary" onclick="duplicateTicket('${x.id}')">複製</button></div><div class="actions"><button class="secondary" onclick="toggleUsed('${x.id}')">${st==='used'?'標記未使用':'標記已使用'}</button><button class="danger" onclick="deleteTicket('${x.id}')">刪除</button></div></div>`;$('#detailDlg').showModal();if(hasCode)$('#detailCode').onclick=()=>{let body=$('#detailBody');if(body.classList.contains('privacy'))body.classList.remove('privacy');else openQRZoom(x.id)}}
+function showDetail(id){let x=data.find(v=>v.id===id);if(!x)return;let st=effectiveStatus(x), hasCode=!!x.codeImage;$('#detailContent').innerHTML=`<div class="detailcover" ${x.cover?`style="background-image:url('${x.cover}')"`:''}>${x.cover?'':icons[x.type]||'🎟️'}</div><div class="detailbody ${settings.privacy?'privacy':''}" id="detailBody"><div style="display:flex;justify-content:space-between;gap:10px"><div><h2>${x.favorite?'❤️ ':''}${esc(x.name)}</h2><div class="muted">${esc(x.type)}・${statusText(st)}</div></div><button class="close" onclick="detailDlg.close()">×</button></div><div class="detailgrid"><div class="detailcell">日期時間<b>${fmtDate(x.date)}</b></div><div class="detailcell">場館 / 地點<b>${esc(x.place||'—')}</b></div><div class="detailcell">座位 / 車次<b>${esc(x.seat||'—')}</b></div><div class="detailcell">票價<b>${x.price?'NT$ '+Number(x.price).toLocaleString():'—'}</b></div></div>${x.tripName?`<div class="muted" style="margin-top:12px">🧳 ${esc(x.tripName)}</div>`:''}${x.companions?`<div class="muted" style="margin-top:6px">👥 ${esc(x.companions)}</div>`:''}${x.tags?`<div class="muted" style="margin-top:6px">🏷️ ${esc(x.tags)}</div>`:''}${x.note?`<div style="margin-top:14px;line-height:1.6">${esc(x.note).replace(/\n/g,'<br>')}</div>`:''}${hasCode?`<img class="codeimg" id="detailCode" src="${x.codeImage}" alt="票券 QR 或條碼"><div class="privacyHint" id="privacyHint">${settings.privacy?'票碼目前已隱藏':'票碼目前已顯示'}</div><button class="code-toggle-btn" id="codeToggleBtn" type="button" onclick="toggleCodeVisibility()">${settings.privacy?'👁️ 顯示 QR / 條碼':'🙈 隱藏 QR / 條碼'}</button><button class="code-zoom-btn" type="button" onclick="openQRZoom('${x.id}')">🔍 放大顯示 QR / 條碼</button>`:''}<div class="actions">${x.place?`<button class="secondary" onclick="openMap('${encodeURIComponent(x.place)}')">導航</button>`:''}<button class="secondary" onclick="downloadICS('${x.id}')">加入行事曆</button><button class="secondary" onclick="shareTicket('${x.id}')">分享</button></div><div class="actions"><button class="secondary" onclick="detailDlg.close();openEdit('${x.id}')">編輯</button><button class="secondary" onclick="duplicateTicket('${x.id}')">複製</button></div><div class="actions"><button class="secondary" onclick="toggleUsed('${x.id}')">${st==='used'?'標記未使用':'標記已使用'}</button><button class="danger" onclick="deleteTicket('${x.id}')">刪除</button></div></div>`;$('#detailDlg').showModal();if(hasCode)$('#detailCode').onclick=()=>toggleCodeVisibility()}
+
+function toggleCodeVisibility(){
+  const body=$('#detailBody'), hint=$('#privacyHint'), btn=$('#codeToggleBtn');
+  if(!body)return;
+  const willShow=body.classList.contains('privacy');
+  body.classList.toggle('privacy',!willShow);
+  if(hint)hint.textContent=willShow?'票碼目前已顯示':'票碼目前已隱藏';
+  if(btn)btn.textContent=willShow?'🙈 隱藏 QR / 條碼':'👁️ 顯示 QR / 條碼';
+}
+window.toggleCodeVisibility=toggleCodeVisibility;
+
+function syncIOSBottom(){
+  // On some iPhone Home Screen web apps the CSS layout viewport is shorter
+  // than the captured screen. screen.height and innerHeight are both CSS px.
+  const vv=window.visualViewport;
+  const top=vv?Math.max(0,vv.offsetTop||0):0;
+  const visibleH=vv?vv.height:window.innerHeight;
+  let gap=Math.max(0, Math.round(window.screen.height - visibleH - top));
+  // Avoid false positives on desktop/iPad split-screen / browser UI.
+  const standalone=window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true;
+  if(!standalone) gap=0;
+  // iPhone Home Screen gap can be sizeable; cap prevents pathological values.
+  gap=Math.min(gap,140);
+  document.documentElement.style.setProperty('--ios-extra-bottom',gap+'px');
+}
+window.addEventListener('resize',syncIOSBottom,{passive:true});
+window.addEventListener('orientationchange',()=>setTimeout(syncIOSBottom,120),{passive:true});
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',syncIOSBottom,{passive:true});
+  window.visualViewport.addEventListener('scroll',syncIOSBottom,{passive:true});
+}
+syncIOSBottom();
+
 function openQRZoom(id){let x=data.find(v=>v.id===id);if(!x||!x.codeImage)return;$('#qrZoomImg').src=x.codeImage;$('#qrZoomDlg').showModal()}
 function closeQRZoom(){let d=$('#qrZoomDlg');if(d&&d.open)d.close()}
 window.openQRZoom=openQRZoom;window.closeQRZoom=closeQRZoom;
@@ -210,8 +255,8 @@ $('#importInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{le
 $('#clearBtn').onclick=()=>{if(confirm('確定清除所有 TicketBox 資料？此動作無法復原，建議先匯出備份。')){data=[];persist();$('#settingsDlg').close()}};
 function syncNavHeight(){}
 
-window.addEventListener('resize',syncNavHeight,{passive:true});
-window.addEventListener('orientationchange',()=>setTimeout(syncNavHeight,120),{passive:true});
+
+
 renderAll();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body></html>
