@@ -157,6 +157,8 @@
   padding:12px 4px 2px;letter-spacing:.01em
 }
 
+
+.upcoming-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}.upcoming-track::-webkit-scrollbar{display:none}.upcoming-slide{flex:0 0 100%;scroll-snap-align:start;scroll-snap-stop:always}.upcoming-slide .hero{margin:0;box-sizing:border-box}.upcoming-dots{display:flex;justify-content:center;gap:6px;min-height:16px;margin-top:7px}.upcoming-dot{width:6px;height:6px;border:0;border-radius:99px;padding:0;background:#d0d5dd}.upcoming-dot.active{width:17px;background:#344054}.upcoming-count{position:absolute;right:12px;top:10px;padding:4px 8px;border-radius:99px;background:#ffffff26;color:#fff;font-size:10px;font-weight:700}.upcoming-slide .hero{position:relative}
 </style>
 </head>
 <body>
@@ -165,7 +167,7 @@
 
   <section id="viewTickets" class="view active">
     <div id="reminderBanner" class="reminder-banner"></div>
-    <section class="hero" id="nextHero"></section>
+    <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
     <div class="quick">
       <button data-quick="today"><b>📍</b>今天</button><button data-quick="week"><b>🗓️</b>7 天內</button><button data-quick="unused"><b>🎟️</b>未使用</button><button data-quick="fav"><b>❤️</b>最愛</button>
     </div>
@@ -275,7 +277,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.5.0';
+const APP_VERSION='1.6.0';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -315,7 +317,10 @@ function storageUsageText(){
   }catch(e){return '無法計算'}
 }
 function ticketMatches(x){let q=$('#search').value.trim().toLowerCase();if(filterType&&x.type!==filterType)return false;let st=effectiveStatus(x), now=new Date(), dt=x.date?new Date(x.date):null;if(quickMode==='today'&&(!dt||dt.toDateString()!==now.toDateString()))return false;if(quickMode==='week'&&(!dt||dt<now||dt-now>7*86400000))return false;if(quickMode==='unused'&&st!=='upcoming')return false;if(quickMode==='fav'&&!x.favorite)return false;return !q||[x.type,x.name,x.place,x.seat,x.tags,x.note].join(' ').toLowerCase().includes(q)}
-function renderHero(){let now=new Date();let up=data.filter(x=>x.date&&effectiveStatus(x)==='upcoming'&&new Date(x.date)>=new Date(now.getTime()-4*3600000)).sort((a,b)=>a.date.localeCompare(b.date))[0];let el=$('#nextHero');if(!up){el.innerHTML='<small>下一張票</small><h2>還沒有即將使用的票券</h2><div class="meta">按右下角 ＋，把下一次旅行、比賽或演出放進 TicketBox。</div><div class="pills"><span class="pill">票券收藏</span><span class="pill">行程月曆</span><span class="pill">回憶統計</span></div>';el.onclick=null;return}el.innerHTML=`<small>下一張票・${esc(up.type)}</small><h2>${esc(up.name)}</h2><div class="meta">${fmtDate(up.date)}${up.place?'｜'+esc(up.place):''}</div><div class="pills">${up.seat?`<span class="pill">${esc(up.seat)}</span>`:''}<span class="pill">${daysUntil(up.date)}</span>${up.favorite?'<span class="pill">❤️ 最愛</span>':''}</div>${up.codeImage?`<button class="hero-quick" onclick="event.stopPropagation();openQRZoom('${up.id}')">▣ 快速開票</button>`:''}`;el.onclick=()=>showDetail(up.id)}
+function renderHero(){let now=new Date(),u=data.filter(x=>x.date&&effectiveStatus(x)==='upcoming'&&new Date(x.date)>=new Date(now.getTime()-14400000)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5),t=$('#upcomingTrack'),d=$('#upcomingDots');if(!u.length){t.innerHTML='<div class="upcoming-slide"><section class="hero"><small>下一張票</small><h2>還沒有即將使用的票券</h2><div class="meta">按右下角 ＋，把下一次旅行、比賽或演出放進 TicketBox。</div></section></div>';d.innerHTML='';return}t.innerHTML=u.map((x,i)=>`<div class="upcoming-slide"><section class="hero" onclick="showDetail('${x.id}')"><span class="upcoming-count">${i+1} / ${u.length}</span><small>${i?'接下來':'下一張票'}・${esc(x.type)}</small><h2>${esc(x.name)}</h2><div class="meta">${fmtDate(x.date)}${x.place?'｜'+esc(x.place):''}</div><div class="pills">${x.seat?`<span class="pill">${esc(x.seat)}</span>`:''}<span class="pill">${daysUntil(x.date)}</span>${x.favorite?'<span class="pill">❤️ 最愛</span>':''}</div>${x.codeImage?`<button class="hero-quick" onclick="event.stopPropagation();openQRZoom('${x.id}')">▣ 快速開票</button>`:''}</section></div>`).join('');d.innerHTML=u.length>1?u.map((_,i)=>`<button class="upcoming-dot ${i?'':'active'}" onclick="goUpcoming(${i})"></button>`).join(''):''}
+function goUpcoming(i){let t=$('#upcomingTrack');t.scrollTo({left:i*t.clientWidth,behavior:'smooth'})}
+function updateUpcomingDots(){let t=$('#upcomingTrack');if(!t||!t.clientWidth)return;let i=Math.round(t.scrollLeft/t.clientWidth);$$('.upcoming-dot').forEach((x,n)=>x.classList.toggle('active',n===i))}
+window.goUpcoming=goUpcoming;
 function renderFilterBar(){let types=[...new Set(data.map(x=>x.type))];$('#filterBar').innerHTML='<button class="chip '+(!filterType?'active':'')+'" data-type="">全部</button>'+types.map(t=>`<button class="chip ${filterType===t?'active':''}" data-type="${esc(t)}">${icons[t]||'🎟️'} ${esc(t)}</button>`).join('');$$('#filterBar .chip').forEach(b=>b.onclick=()=>{filterType=b.dataset.type;renderTickets();renderFilterBar()})}
 function renderTickets(){let list=data.filter(ticketMatches).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));$('#count').textContent=`${list.length} / ${data.length} 張`;$('#tickets').innerHTML=list.length?list.map(ticketCard).join(''):'<div class="empty">沒有符合條件的票券<br><small>你可以清除篩選或新增一張票。</small></div>';$$('[data-open]').forEach(b=>b.onclick=()=>showDetail(b.dataset.open));$$('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();openEdit(b.dataset.edit)})}
 function ticketCard(x){let st=effectiveStatus(x), cover=x.cover?`style="background-image:url('${x.cover}')"`:'';return `<article class="ticket"><div class="ticket-cover ${x.cover?'':'noimg'}" ${cover}>${x.cover?'':icons[x.type]||'🎟️'}</div><div class="ticket-body"><div class="ticket-top"><div><h3>${x.favorite?'❤️ ':''}${esc(x.name)}</h3><div class="muted">${fmtDate(x.date)}${x.place?' ・ '+esc(x.place):''}</div>${x.seat?`<div style="margin-top:7px;font-size:13px">🎫 ${esc(x.seat)}</div>`:''}</div><span class="badge">${esc(x.type)} <span class="status ${st}">${statusText(st)}</span></span></div>${x.tags?`<div class="muted" style="margin-top:9px"># ${esc(x.tags.replaceAll(',',' · '))}</div>`:''}<div class="ticket-actions"><button class="smallbtn primary" data-open="${x.id}">打開票券</button><button class="smallbtn" data-edit="${x.id}">編輯</button>${x.place?`<button class="smallbtn" onclick="event.stopPropagation();openMap('${encodeURIComponent(x.place)}')">導航</button>`:''}</div></div></article>`}
@@ -378,6 +383,7 @@ function syncNavHeight(){}
 
 
 
+$('#upcomingTrack')?.addEventListener('scroll',updateUpcomingDots,{passive:true});
 renderAll();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body></html>
