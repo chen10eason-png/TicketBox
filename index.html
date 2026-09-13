@@ -161,33 +161,29 @@
 .upcoming-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}.upcoming-track::-webkit-scrollbar{display:none}.upcoming-slide{flex:0 0 100%;scroll-snap-align:start;scroll-snap-stop:always}.upcoming-slide .hero{margin:0;box-sizing:border-box}.upcoming-dots{display:flex;justify-content:center;gap:6px;min-height:16px;margin-top:7px}.upcoming-dot{width:6px;height:6px;border:0;border-radius:99px;padding:0;background:#d0d5dd}.upcoming-dot.active{width:17px;background:#344054}.upcoming-count{position:absolute;right:12px;top:10px;padding:4px 8px;border-radius:99px;background:#ffffff26;color:#fff;font-size:10px;font-weight:700}.upcoming-slide .hero{position:relative}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
-/* v1.7.2 — reliable iPhone/iPad photo picker */
-.native-file-input{
-  position:absolute!important;
-  width:1px!important;height:1px!important;
-  opacity:.001!important;
-  pointer-events:none!important;
+.media-processing{padding:9px 10px;margin-top:8px;border-radius:10px;background:#fff7ed;color:#9a3412;font-size:11px;text-align:center}
+/* v1.7.3 — direct native file inputs for iOS standalone PWA */
+.media-direct{
+  position:relative!important;
   overflow:hidden!important;
-  clip:rect(0 0 0 0)!important;
-  clip-path:inset(50%)!important;
-}
-.media-label{
   display:flex!important;
   flex-direction:column!important;
   align-items:center!important;
   justify-content:center!important;
-  width:auto!important;
-  margin:0!important;
   cursor:pointer!important;
-  user-select:none!important;
-  -webkit-user-select:none!important;
-  touch-action:manipulation!important;
+  -webkit-tap-highlight-color:transparent!important;
 }
-.media-label:active{transform:scale(.98)}
-.media-processing{
-  padding:9px 10px;margin-top:8px;border-radius:10px;
-  background:#fff7ed;color:#9a3412;font-size:11px;text-align:center
+.native-file-overlay{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  opacity:0!important;
+  z-index:5!important;
+  cursor:pointer!important;
+  font-size:100px!important;
 }
+.media-direct:active{transform:scale(.98)}
 
 </style>
 </head>
@@ -261,15 +257,21 @@
       <label>票券封面照片</label>
       <div class="media-picker">
         <div class="media-picker-title">選擇加入方式</div>
-        <div class="media-actions"><label class="media-btn media-label" for="coverCamera"><span>📷</span>拍照</label><label class="media-btn media-label" for="coverLibrary"><span>🖼️</span>相簿</label><label class="media-btn media-label" for="coverFile"><span>📁</span>檔案</label></div>
-        <input id="coverCamera" class="native-file-input" type="file" accept="image/*" capture="environment"><input id="coverLibrary" class="native-file-input" type="file" accept="image/*"><input id="coverFile" class="native-file-input" type="file" accept="image/*">
+        <div class="media-actions">
+          <label class="media-btn media-direct"><span>📷</span>拍照<input id="coverCamera" class="native-file-overlay" type="file" accept="image/*" capture="environment"></label>
+          <label class="media-btn media-direct"><span>🖼️</span>相簿<input id="coverLibrary" class="native-file-overlay" type="file" accept="image/*"></label>
+          <label class="media-btn media-direct"><span>📁</span>檔案<input id="coverFile" class="native-file-overlay" type="file" accept="image/*"></label>
+        </div>
         <div id="coverWrap" class="media-preview-wrap"><button id="removeCover" class="remove-media" type="button" aria-label="移除封面">×</button><div id="coverPreview" class="preview"></div></div>
       </div>
       <label style="margin-top:18px">QR Code / 條碼圖片</label>
       <div class="media-picker">
         <div class="media-picker-title">選擇加入方式</div>
-        <div class="media-actions"><label class="media-btn media-label" for="codeCamera"><span>📷</span>拍照</label><label class="media-btn media-label" for="codeLibrary"><span>🖼️</span>相簿</label><label class="media-btn media-label" for="codeFile"><span>📁</span>檔案</label></div>
-        <input id="codeCamera" class="native-file-input" type="file" accept="image/*" capture="environment"><input id="codeLibrary" class="native-file-input" type="file" accept="image/*"><input id="codeFile" class="native-file-input" type="file" accept="image/*">
+        <div class="media-actions">
+          <label class="media-btn media-direct"><span>📷</span>拍照<input id="codeCamera" class="native-file-overlay" type="file" accept="image/*" capture="environment"></label>
+          <label class="media-btn media-direct"><span>🖼️</span>相簿<input id="codeLibrary" class="native-file-overlay" type="file" accept="image/*"></label>
+          <label class="media-btn media-direct"><span>📁</span>檔案<input id="codeFile" class="native-file-overlay" type="file" accept="image/*"></label>
+        </div>
         <div id="codeWrap" class="media-preview-wrap"><button id="removeCode" class="remove-media" type="button" aria-label="移除票碼圖片">×</button><div id="codePreview" class="preview"></div></div>
       </div>
       <div class="editor-help">封面與 QR / 條碼現在都有「拍照、相簿、檔案」三種方式。票碼仍可使用隱私模糊。</div>
@@ -315,7 +317,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.7.2';
+const APP_VERSION='1.7.3';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -435,11 +437,13 @@ async function processPickedImage(input,kind){
       codeImageData=val; setPreview('#codePreview',codeImageData);
     }
     syncMediaWraps();
+    setMediaBusy(kind,true,'✅ 照片已載入');
+    setTimeout(()=>setMediaBusy(kind,false),900);
   }catch(err){
     console.error('Photo import failed',err);
+    setMediaBusy(kind,false);
     alert(err?.message==='NOT_IMAGE'?'請選擇圖片檔案。':'這張照片目前無法讀取，請改用「相簿」或先截圖後再選擇。');
   }finally{
-    setMediaBusy(kind,false);
     input.value='';
   }
 }
