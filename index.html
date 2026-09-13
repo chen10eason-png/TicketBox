@@ -160,6 +160,35 @@
 
 .upcoming-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain}.upcoming-track::-webkit-scrollbar{display:none}.upcoming-slide{flex:0 0 100%;scroll-snap-align:start;scroll-snap-stop:always}.upcoming-slide .hero{margin:0;box-sizing:border-box}.upcoming-dots{display:flex;justify-content:center;gap:6px;min-height:16px;margin-top:7px}.upcoming-dot{width:6px;height:6px;border:0;border-radius:99px;padding:0;background:#d0d5dd}.upcoming-dot.active{width:17px;background:#344054}.upcoming-count{position:absolute;right:12px;top:10px;padding:4px 8px;border-radius:99px;background:#ffffff26;color:#fff;font-size:10px;font-weight:700}.upcoming-slide .hero{position:relative}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* v1.7.2 — reliable iPhone/iPad photo picker */
+.native-file-input{
+  position:absolute!important;
+  width:1px!important;height:1px!important;
+  opacity:.001!important;
+  pointer-events:none!important;
+  overflow:hidden!important;
+  clip:rect(0 0 0 0)!important;
+  clip-path:inset(50%)!important;
+}
+.media-label{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:auto!important;
+  margin:0!important;
+  cursor:pointer!important;
+  user-select:none!important;
+  -webkit-user-select:none!important;
+  touch-action:manipulation!important;
+}
+.media-label:active{transform:scale(.98)}
+.media-processing{
+  padding:9px 10px;margin-top:8px;border-radius:10px;
+  background:#fff7ed;color:#9a3412;font-size:11px;text-align:center
+}
+
 </style>
 </head>
 <body>
@@ -232,15 +261,15 @@
       <label>票券封面照片</label>
       <div class="media-picker">
         <div class="media-picker-title">選擇加入方式</div>
-        <div class="media-actions"><button class="media-btn" type="button" data-pick="coverCamera"><span>📷</span>拍照</button><button class="media-btn" type="button" data-pick="coverLibrary"><span>🖼️</span>相簿</button><button class="media-btn" type="button" data-pick="coverFile"><span>📁</span>檔案</button></div>
-        <input id="coverCamera" class="hidden" type="file" accept="image/*" capture="environment"><input id="coverLibrary" class="hidden" type="file" accept="image/*"><input id="coverFile" class="hidden" type="file" accept="image/*">
+        <div class="media-actions"><label class="media-btn media-label" for="coverCamera"><span>📷</span>拍照</label><label class="media-btn media-label" for="coverLibrary"><span>🖼️</span>相簿</label><label class="media-btn media-label" for="coverFile"><span>📁</span>檔案</label></div>
+        <input id="coverCamera" class="native-file-input" type="file" accept="image/*" capture="environment"><input id="coverLibrary" class="native-file-input" type="file" accept="image/*"><input id="coverFile" class="native-file-input" type="file" accept="image/*">
         <div id="coverWrap" class="media-preview-wrap"><button id="removeCover" class="remove-media" type="button" aria-label="移除封面">×</button><div id="coverPreview" class="preview"></div></div>
       </div>
       <label style="margin-top:18px">QR Code / 條碼圖片</label>
       <div class="media-picker">
         <div class="media-picker-title">選擇加入方式</div>
-        <div class="media-actions"><button class="media-btn" type="button" data-pick="codeCamera"><span>📷</span>拍照</button><button class="media-btn" type="button" data-pick="codeLibrary"><span>🖼️</span>相簿</button><button class="media-btn" type="button" data-pick="codeFile"><span>📁</span>檔案</button></div>
-        <input id="codeCamera" class="hidden" type="file" accept="image/*" capture="environment"><input id="codeLibrary" class="hidden" type="file" accept="image/*"><input id="codeFile" class="hidden" type="file" accept="image/*">
+        <div class="media-actions"><label class="media-btn media-label" for="codeCamera"><span>📷</span>拍照</label><label class="media-btn media-label" for="codeLibrary"><span>🖼️</span>相簿</label><label class="media-btn media-label" for="codeFile"><span>📁</span>檔案</label></div>
+        <input id="codeCamera" class="native-file-input" type="file" accept="image/*" capture="environment"><input id="codeLibrary" class="native-file-input" type="file" accept="image/*"><input id="codeFile" class="native-file-input" type="file" accept="image/*">
         <div id="codeWrap" class="media-preview-wrap"><button id="removeCode" class="remove-media" type="button" aria-label="移除票碼圖片">×</button><div id="codePreview" class="preview"></div></div>
       </div>
       <div class="editor-help">封面與 QR / 條碼現在都有「拍照、相簿、檔案」三種方式。票碼仍可使用隱私模糊。</div>
@@ -286,7 +315,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.7.1';
+const APP_VERSION='1.7.2';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -348,8 +377,92 @@ function renderStats(){let total=data.length, used=data.filter(x=>effectiveStatu
 function renderAll(){renderReminderBanner();renderHero();renderFilterBar();renderTickets();renderCalendar();renderTrips();renderMemories();renderStats()}
 function openEdit(id=''){let x=data.find(v=>v.id===id);$('#formTitle').textContent=x?'編輯票券':'新增票券';$('#editId').value=x?.id||'';$('#type').value=x?.type||'棒球';syncPlaceFields();$('#status').value=x?.status||'auto';$('#name').value=x?.name||'';$('#date').value=x?.date||'';$('#endDate').value=x?.endDate||'';$('#place').value=x?.place||'';$('#origin').value=x?.origin||'';$('#destination').value=x?.destination||'';syncPlaceFields();$('#seat').value=x?.seat||'';$('#price').value=x?.price||'';$('#code').value=x?.code||'';$('#tripName').value=x?.tripName||'';$('#companions').value=x?.companions||'';$('#tags').value=x?.tags||'';$('#reminder').value=x?.reminder||'none';$('#favorite').checked=!!x?.favorite;$('#note').value=x?.note||'';coverData=x?.cover||'';codeImageData=x?.codeImage||'';setPreview('#coverPreview',coverData);setPreview('#codePreview',codeImageData);syncMediaWraps();setEditTab('basic');$('#editDlg').showModal()}
 function setPreview(sel,val){let el=$(sel);if(val){el.style.display='block';el.style.backgroundImage=`url('${val}')`}else{el.style.display='none';el.style.backgroundImage='none'}}
-async function fileToData(file,max=1200,quality=.78){return new Promise((resolve,reject)=>{let r=new FileReader();r.onload=()=>{let img=new Image();img.onload=()=>{let scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',quality))};img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
-function setEditTab(name){document.querySelectorAll('.editor-tab').forEach(b=>b.classList.toggle('active',b.dataset.editTab===name));document.querySelectorAll('.editor-page').forEach(p=>p.classList.toggle('active',p.dataset.editPage===name));let page=document.querySelector(`[data-edit-page="${name}"]`);if(page)page.scrollTop=0}document.querySelectorAll('.editor-tab').forEach(b=>b.onclick=()=>setEditTab(b.dataset.editTab));document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.pick).click());function syncMediaWraps(){$('#coverWrap').classList.toggle('has-media',!!coverData);$('#codeWrap').classList.toggle('has-media',!!codeImageData)}async function handleCoverInput(e){if(e.target.files[0]){coverData=await fileToData(e.target.files[0],1400,.75);setPreview('#coverPreview',coverData);syncMediaWraps()}e.target.value=''}async function handleCodeInput(e){if(e.target.files[0]){codeImageData=await fileToData(e.target.files[0],1800,.88);setPreview('#codePreview',codeImageData);syncMediaWraps()}e.target.value=''}['coverCamera','coverLibrary','coverFile'].forEach(id=>$('#'+id).onchange=handleCoverInput);['codeCamera','codeLibrary','codeFile'].forEach(id=>$('#'+id).onchange=handleCodeInput);$('#removeCover').onclick=()=>{coverData='';setPreview('#coverPreview','');syncMediaWraps()};$('#removeCode').onclick=()=>{codeImageData='';setPreview('#codePreview','');syncMediaWraps()};
+async function fileToData(file,max=1200,quality=.78){
+  if(!file) throw new Error('NO_FILE');
+  if(file.type && !file.type.startsWith('image/')) throw new Error('NOT_IMAGE');
+
+  const rawData = await new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result);
+    r.onerror=()=>reject(r.error||new Error('READ_FAILED'));
+    r.readAsDataURL(file);
+  });
+
+  // Decode through an <img>. This works better with iOS Photos than createImageBitmap.
+  try{
+    const img=await new Promise((resolve,reject)=>{
+      const im=new Image();
+      im.onload=()=>resolve(im);
+      im.onerror=()=>reject(new Error('DECODE_FAILED'));
+      im.src=rawData;
+    });
+    const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+    if(!w||!h) throw new Error('ZERO_SIZE');
+    const scale=Math.min(1,max/Math.max(w,h));
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(w*scale));
+    c.height=Math.max(1,Math.round(h*scale));
+    const ctx=c.getContext('2d',{alpha:false});
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+    ctx.drawImage(img,0,0,c.width,c.height);
+    const compressed=c.toDataURL('image/jpeg',quality);
+    if(compressed && compressed.length>100) return compressed;
+  }catch(err){
+    console.warn('Image compression fallback',err);
+  }
+
+  // Fallback keeps the original data URL if Safari can read it but cannot canvas-decode it.
+  return rawData;
+}
+function setMediaBusy(kind,busy,text='處理照片中…'){
+  const wrap=$(kind==='cover'?'#coverWrap':'#codeWrap');
+  if(!wrap)return;
+  let note=wrap.parentElement.querySelector('.media-processing');
+  if(busy){
+    if(!note){note=document.createElement('div');note.className='media-processing';wrap.parentElement.insertBefore(note,wrap)}
+    note.textContent=text;
+  }else if(note)note.remove();
+}
+async function processPickedImage(input,kind){
+  const file=input.files&&input.files[0];
+  if(!file){input.value='';return}
+  try{
+    setMediaBusy(kind,true);
+    const val=await fileToData(file,kind==='cover'?1280:1600,kind==='cover'?.72:.86);
+    if(kind==='cover'){
+      coverData=val; setPreview('#coverPreview',coverData);
+    }else{
+      codeImageData=val; setPreview('#codePreview',codeImageData);
+    }
+    syncMediaWraps();
+  }catch(err){
+    console.error('Photo import failed',err);
+    alert(err?.message==='NOT_IMAGE'?'請選擇圖片檔案。':'這張照片目前無法讀取，請改用「相簿」或先截圖後再選擇。');
+  }finally{
+    setMediaBusy(kind,false);
+    input.value='';
+  }
+}
+function setEditTab(name){
+  document.querySelectorAll('.editor-tab').forEach(b=>b.classList.toggle('active',b.dataset.editTab===name));
+  document.querySelectorAll('.editor-page').forEach(p=>p.classList.toggle('active',p.dataset.editPage===name));
+  let page=document.querySelector(`[data-edit-page="${name}"]`);if(page)page.scrollTop=0
+}
+document.querySelectorAll('.editor-tab').forEach(b=>b.onclick=()=>setEditTab(b.dataset.editTab));
+function syncMediaWraps(){
+  $('#coverWrap').classList.toggle('has-media',!!coverData);
+  $('#codeWrap').classList.toggle('has-media',!!codeImageData)
+}
+['coverCamera','coverLibrary','coverFile'].forEach(id=>{
+  const el=$('#'+id);
+  el.addEventListener('change',()=>processPickedImage(el,'cover'));
+});
+['codeCamera','codeLibrary','codeFile'].forEach(id=>{
+  const el=$('#'+id);
+  el.addEventListener('change',()=>processPickedImage(el,'code'));
+});
+$('#removeCover').onclick=()=>{coverData='';setPreview('#coverPreview','');syncMediaWraps()};
+$('#removeCode').onclick=()=>{codeImageData='';setPreview('#codePreview','');syncMediaWraps()};
 $('#form').onsubmit=e=>{
   e.preventDefault();
   try{
