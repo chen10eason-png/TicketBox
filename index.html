@@ -71,6 +71,15 @@
   color:#344054;
   font-weight:700;
 }
+
+/* v1.4.6 — five tabs occupy the bottom strip */
+:root{--tb-nav-h:72px;--tb-vv-bottom:0px}
+.app{bottom:calc(var(--tb-nav-h) + var(--tb-vv-bottom)) !important}
+.nav{position:fixed!important;left:0!important;right:0!important;bottom:var(--tb-vv-bottom)!important;width:100%!important;height:var(--tb-nav-h)!important;min-height:var(--tb-nav-h)!important;max-height:var(--tb-nav-h)!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#fff!important;z-index:9999!important}
+.navin{height:100%!important;min-height:100%!important;max-width:760px!important;margin:0 auto!important;padding:0!important;align-items:stretch!important}
+.nav button{height:100%!important;min-height:100%!important;margin:0!important;padding:6px 3px 5px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important}
+.fab{bottom:calc(var(--tb-nav-h) + var(--tb-vv-bottom) + 12px)!important}
+
 </style>
 </head>
 <body>
@@ -220,18 +229,11 @@ function toggleCodeVisibility(){
 window.toggleCodeVisibility=toggleCodeVisibility;
 
 function syncIOSBottom(){
-  // On some iPhone Home Screen web apps the CSS layout viewport is shorter
-  // than the captured screen. screen.height and innerHeight are both CSS px.
   const vv=window.visualViewport;
-  const top=vv?Math.max(0,vv.offsetTop||0):0;
-  const visibleH=vv?vv.height:window.innerHeight;
-  let gap=Math.max(0, Math.round(window.screen.height - visibleH - top));
-  // Avoid false positives on desktop/iPad split-screen / browser UI.
-  const standalone=window.matchMedia('(display-mode: standalone)').matches || navigator.standalone===true;
-  if(!standalone) gap=0;
-  // iPhone Home Screen gap can be sizeable; cap prevents pathological values.
-  gap=Math.min(gap,140);
-  document.documentElement.style.setProperty('--ios-extra-bottom',gap+'px');
+  let inset=0;
+  if(vv) inset=Math.max(0,Math.round(window.innerHeight-(vv.height+vv.offsetTop)));
+  inset=Math.min(inset,120);
+  document.documentElement.style.setProperty('--tb-vv-bottom',inset+'px');
 }
 window.addEventListener('resize',syncIOSBottom,{passive:true});
 window.addEventListener('orientationchange',()=>setTimeout(syncIOSBottom,120),{passive:true});
