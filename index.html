@@ -317,10 +317,85 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.7.3';
+const APP_VERSION='1.8.0';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
+
+const MEDIA_DB='ticketbox-media-v1', MEDIA_STORE='images';
+const mediaCache=new Map();
+
+function openMediaDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(MEDIA_DB,1);
+    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(MEDIA_STORE))db.createObjectStore(MEDIA_STORE)};
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error('IndexedDB 開啟失敗'));
+  });
+}
+async function mediaPut(key,value){
+  const db=await openMediaDB();
+  await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MEDIA_STORE,'readwrite');
+    tx.objectStore(MEDIA_STORE).put(value,key);
+    tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); tx.onabort=()=>reject(tx.error);
+  });
+  db.close(); mediaCache.set(key,value);
+}
+async function mediaGet(key){
+  if(!key)return '';
+  if(!key.startsWith('idb:'))return key;
+  if(mediaCache.has(key))return mediaCache.get(key);
+  const db=await openMediaDB();
+  const val=await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MEDIA_STORE,'readonly');
+    const req=tx.objectStore(MEDIA_STORE).get(key);
+    req.onsuccess=()=>resolve(req.result||''); req.onerror=()=>reject(req.error);
+  });
+  db.close(); if(val)mediaCache.set(key,val); return val||'';
+}
+async function mediaDelete(key){
+  if(!key||!key.startsWith('idb:'))return;
+  const db=await openMediaDB();
+  await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MEDIA_STORE,'readwrite');
+    tx.objectStore(MEDIA_STORE).delete(key);
+    tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error); tx.onabort=()=>reject(tx.error);
+  });
+  db.close(); mediaCache.delete(key);
+}
+function mediaSrc(ref){return !ref?'':(ref.startsWith('idb:')?(mediaCache.get(ref)||''):ref)}
+async function saveTicketMedia(id,kind,current,previous){
+  const key=`idb:${id}:${kind}`;
+  if(!current){
+    if(previous)await mediaDelete(previous);
+    await mediaDelete(key);
+    return '';
+  }
+  if(current.startsWith('idb:'))return current;
+  if(current.startsWith('data:image/')){
+    await mediaPut(key,current);
+    if(previous&&previous!==key)await mediaDelete(previous);
+    return key;
+  }
+  return current;
+}
+async function hydrateAllMedia(){
+  const refs=[...new Set(data.flatMap(x=>[x.cover,x.codeImage]).filter(x=>x&&x.startsWith('idb:')))];
+  await Promise.all(refs.map(async r=>{try{await mediaGet(r)}catch(e){console.warn('media hydrate failed',r,e)}}));
+}
+async function migrateInlineMedia(){
+  let changed=false;
+  for(const x of data){
+    if(x.cover&&x.cover.startsWith('data:image/')){
+      try{x.cover=await saveTicketMedia(x.id,'cover',x.cover,'');changed=true}catch(e){console.warn('cover migration failed',e)}
+    }
+    if(x.codeImage&&x.codeImage.startsWith('data:image/')){
+      try{x.codeImage=await saveTicketMedia(x.id,'code',x.codeImage,'');changed=true}catch(e){console.warn('code migration failed',e)}
+    }
+  }
+  if(changed)localStorage.setItem(KEY,JSON.stringify(data));
+}
 let data=loadData(), settings=JSON.parse(localStorage.getItem(SETKEY)||'{"privacy":true}'), filterType='', quickMode='', calCursor=new Date(), coverData='', codeImageData=''; ensureUpgradeSnapshot(); data=data.map(migrateTicket); localStorage.setItem(KEY,JSON.stringify(data));
 function loadData(){try{let v=JSON.parse(localStorage.getItem(KEY)||'null');if(Array.isArray(v))return v;let old=JSON.parse(localStorage.getItem(OLD)||'[]');return old.map(x=>({...x,endDate:'',status:'auto',code:'',tags:'',favorite:false,cover:'',codeImage:'',createdAt:new Date().toISOString()}))}catch(e){return[]}}
 function ensureUpgradeSnapshot(){try{if(!localStorage.getItem(SNAPKEY)){let raw=localStorage.getItem(KEY)||localStorage.getItem(OLD);if(raw)localStorage.setItem(SNAPKEY,raw)}localStorage.setItem(METAKEY,JSON.stringify({schema:15,appVersion:APP_VERSION,lastOpened:new Date().toISOString()}))}catch(e){}}
@@ -364,20 +439,20 @@ function storageUsageText(){
   }catch(e){return '無法計算'}
 }
 function ticketMatches(x){let q=$('#search').value.trim().toLowerCase();if(filterType&&x.type!==filterType)return false;let st=effectiveStatus(x), now=new Date(), dt=x.date?new Date(x.date):null;if(quickMode==='today'&&(!dt||dt.toDateString()!==now.toDateString()))return false;if(quickMode==='week'&&(!dt||dt<now||dt-now>7*86400000))return false;if(quickMode==='unused'&&st!=='upcoming')return false;if(quickMode==='fav'&&!x.favorite)return false;return !q||[x.type,x.name,x.place,x.origin,x.destination,x.seat,x.tags,x.note].join(' ').toLowerCase().includes(q)}
-function renderHero(){let now=new Date(),u=data.filter(x=>x.date&&effectiveStatus(x)==='upcoming'&&new Date(x.date)>=new Date(now.getTime()-14400000)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5),t=$('#upcomingTrack'),d=$('#upcomingDots');if(!u.length){t.innerHTML='<div class="upcoming-slide"><section class="hero"><small>下一張票</small><h2>還沒有即將使用的票券</h2><div class="meta">按右下角 ＋，把下一次旅行、比賽或演出放進 TicketBox。</div></section></div>';d.innerHTML='';return}t.innerHTML=u.map((x,i)=>`<div class="upcoming-slide"><section class="hero" onclick="showDetail('${x.id}')"><span class="upcoming-count">${i+1} / ${u.length}</span><small>${i?'接下來':'下一張票'}・${esc(x.type)}</small><h2>${esc(x.name)}</h2><div class="meta">${fmtDate(x.date)}${routeLabel(x)?'｜'+esc(routeLabel(x)):''}</div><div class="pills">${x.seat?`<span class="pill">${esc(x.seat)}</span>`:''}<span class="pill">${daysUntil(x.date)}</span>${x.favorite?'<span class="pill">❤️ 最愛</span>':''}</div>${x.codeImage?`<button class="hero-quick" onclick="event.stopPropagation();openQRZoom('${x.id}')">▣ 快速開票</button>`:''}</section></div>`).join('');d.innerHTML=u.length>1?u.map((_,i)=>`<button class="upcoming-dot ${i?'':'active'}" onclick="goUpcoming(${i})"></button>`).join(''):''}
+function renderHero(){let now=new Date(),u=data.filter(x=>x.date&&effectiveStatus(x)==='upcoming'&&new Date(x.date)>=new Date(now.getTime()-14400000)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5),t=$('#upcomingTrack'),d=$('#upcomingDots');if(!u.length){t.innerHTML='<div class="upcoming-slide"><section class="hero"><small>下一張票</small><h2>還沒有即將使用的票券</h2><div class="meta">按右下角 ＋，把下一次旅行、比賽或演出放進 TicketBox。</div></section></div>';d.innerHTML='';return}t.innerHTML=u.map((x,i)=>`<div class="upcoming-slide"><section class="hero" onclick="showDetail('${x.id}')"><span class="upcoming-count">${i+1} / ${u.length}</span><small>${i?'接下來':'下一張票'}・${esc(x.type)}</small><h2>${esc(x.name)}</h2><div class="meta">${fmtDate(x.date)}${routeLabel(x)?'｜'+esc(routeLabel(x)):''}</div><div class="pills">${x.seat?`<span class="pill">${esc(x.seat)}</span>`:''}<span class="pill">${daysUntil(x.date)}</span>${x.favorite?'<span class="pill">❤️ 最愛</span>':''}</div>${mediaSrc(x.codeImage)?`<button class="hero-quick" onclick="event.stopPropagation();openQRZoom('${x.id}')">▣ 快速開票</button>`:''}</section></div>`).join('');d.innerHTML=u.length>1?u.map((_,i)=>`<button class="upcoming-dot ${i?'':'active'}" onclick="goUpcoming(${i})"></button>`).join(''):''}
 function goUpcoming(i){let t=$('#upcomingTrack');t.scrollTo({left:i*t.clientWidth,behavior:'smooth'})}
 function updateUpcomingDots(){let t=$('#upcomingTrack');if(!t||!t.clientWidth)return;let i=Math.round(t.scrollLeft/t.clientWidth);$$('.upcoming-dot').forEach((x,n)=>x.classList.toggle('active',n===i))}
 window.goUpcoming=goUpcoming;
 function renderFilterBar(){let types=[...new Set(data.map(x=>x.type))];$('#filterBar').innerHTML='<button class="chip '+(!filterType?'active':'')+'" data-type="">全部</button>'+types.map(t=>`<button class="chip ${filterType===t?'active':''}" data-type="${esc(t)}">${icons[t]||'🎟️'} ${esc(t)}</button>`).join('');$$('#filterBar .chip').forEach(b=>b.onclick=()=>{filterType=b.dataset.type;renderTickets();renderFilterBar()})}
 function renderTickets(){let list=data.filter(ticketMatches).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));$('#count').textContent=`${list.length} / ${data.length} 張`;$('#tickets').innerHTML=list.length?list.map(ticketCard).join(''):'<div class="empty">沒有符合條件的票券<br><small>你可以清除篩選或新增一張票。</small></div>';$$('[data-open]').forEach(b=>b.onclick=()=>showDetail(b.dataset.open));$$('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();openEdit(b.dataset.edit)})}
-function ticketCard(x){let st=effectiveStatus(x), cover=x.cover?`style="background-image:url('${x.cover}')"`:'';return `<article class="ticket"><div class="ticket-cover ${x.cover?'':'noimg'}" ${cover}>${x.cover?'':icons[x.type]||'🎟️'}</div><div class="ticket-body"><div class="ticket-top"><div><h3>${x.favorite?'❤️ ':''}${esc(x.name)}</h3><div class="muted">${fmtDate(x.date)}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>${x.seat?`<div style="margin-top:7px;font-size:13px">🎫 ${esc(x.seat)}</div>`:''}</div><span class="badge">${esc(x.type)} <span class="status ${st}">${statusText(st)}</span></span></div>${x.tags?`<div class="muted" style="margin-top:9px"># ${esc(x.tags.replaceAll(',',' · '))}</div>`:''}<div class="ticket-actions"><button class="smallbtn primary" data-open="${x.id}">打開票券</button><button class="smallbtn" data-edit="${x.id}">編輯</button>${x.place?`<button class="smallbtn" onclick="event.stopPropagation();openMap('${encodeURIComponent(isRouteType(x.type)?(x.destination||x.origin):x.place)}')">導航</button>`:''}</div></div></article>`}
+function ticketCard(x){let st=effectiveStatus(x), cover=mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:'';return `<article class="ticket"><div class="ticket-cover ${x.cover?'':'noimg'}" ${cover}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div class="ticket-body"><div class="ticket-top"><div><h3>${x.favorite?'❤️ ':''}${esc(x.name)}</h3><div class="muted">${fmtDate(x.date)}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>${x.seat?`<div style="margin-top:7px;font-size:13px">🎫 ${esc(x.seat)}</div>`:''}</div><span class="badge">${esc(x.type)} <span class="status ${st}">${statusText(st)}</span></span></div>${x.tags?`<div class="muted" style="margin-top:9px"># ${esc(x.tags.replaceAll(',',' · '))}</div>`:''}<div class="ticket-actions"><button class="smallbtn primary" data-open="${x.id}">打開票券</button><button class="smallbtn" data-edit="${x.id}">編輯</button>${x.place?`<button class="smallbtn" onclick="event.stopPropagation();openMap('${encodeURIComponent(isRouteType(x.type)?(x.destination||x.origin):x.place)}')">導航</button>`:''}</div></div></article>`}
 window.openMap=q=>window.open('https://www.google.com/maps/search/?api=1&query='+q,'_blank');
 function renderCalendar(){let y=calCursor.getFullYear(),m=calCursor.getMonth();$('#calTitle').textContent=`${y} 年 ${m+1} 月`;let first=new Date(y,m,1), start=new Date(y,m,1-first.getDay()), html='';for(let i=0;i<42;i++){let d=new Date(start);d.setDate(start.getDate()+i);let ds=d.toDateString(), hits=data.filter(x=>x.date&&new Date(x.date).toDateString()===ds), cls=['day'];if(d.getMonth()!==m)cls.push('other');if(ds===new Date().toDateString())cls.push('today');if(hits.length)cls.push('has');html+=`<div class="${cls.join(' ')}"><span>${d.getDate()}</span>${hits.length?`<div class="dots">${hits.slice(0,3).map(()=>'<i class="dot"></i>').join('')}</div>`:''}</div>`}$('#calendarDays').innerHTML=html;let month=data.filter(x=>x.date&&new Date(x.date).getFullYear()===y&&new Date(x.date).getMonth()===m).sort((a,b)=>a.date.localeCompare(b.date));$('#monthCount').textContent=month.length+' 個行程';$('#agenda').innerHTML=month.length?month.map(x=>{let d=new Date(x.date);return`<div class="agenda-item" onclick="showDetail('${x.id}')"><div class="agenda-date">${d.getDate()}<small>${d.toLocaleDateString('zh-TW',{weekday:'short'})}</small></div><div><b>${esc(x.name)}</b><div class="muted">${d.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div></div></div>`}).join(''):'<div class="empty">這個月還沒有票券行程</div>'}
 function renderTrips(){let groups={};data.filter(x=>x.tripName).forEach(x=>(groups[x.tripName]??=[]).push(x));let names=Object.keys(groups);$('#tripCount').textContent=names.length+' 趟';$('#trips').innerHTML=names.length?names.sort((a,b)=>{let da=Math.min(...groups[a].map(x=>new Date(x.date||'2999-01-01').getTime())),db=Math.min(...groups[b].map(x=>new Date(x.date||'2999-01-01').getTime()));return da-db}).map(name=>{let items=groups[name].sort((a,b)=>(a.date||'').localeCompare(b.date||'')),people=[...new Set(items.flatMap(x=>(x.companions||'').split(/[,，、]/).map(z=>z.trim()).filter(Boolean)))],start=items.find(x=>x.date)?.date,done=items.filter(x=>effectiveStatus(x)==='used'||effectiveStatus(x)==='expired').length,pct=Math.round(done/items.length*100),next=items.find(x=>x.date&&effectiveStatus(x)==='upcoming'&&new Date(x.date)>=new Date());return `<div class="tripcard"><div class="triphead"><div><b style="font-size:17px">🧳 ${esc(name)}</b><div class="muted" style="margin-top:5px">${start?new Date(start).toLocaleDateString('zh-TW'):''}・${items.length} 張票券</div></div><span class="badge">${people.length?people.length+' 位同行者':'個人旅程'}</span></div><div class="trip-progress"><div class="trip-progress-row"><span>旅程進度 ${done}/${items.length}</span><span>${pct}%</span></div><div class="trip-progress-bar"><i style="width:${pct}%"></i></div>${next?`<div class="muted" style="margin-top:7px">下一站：${esc(next.name)}・${fmtDate(next.date)}</div>`:''}</div><div class="tripmeta">${people.slice(0,4).map(p=>`<span class="softpill">👤 ${esc(p)}</span>`).join('')}</div><div style="margin-top:12px;display:grid;gap:7px">${items.map(x=>`<button class="smallbtn" style="text-align:left" onclick="showDetail('${x.id}')">${icons[x.type]||'🎟️'} ${esc(x.name)}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</button>`).join('')}</div></div>`}).join(''):'<div class="empty">還沒有旅程。<br><small>編輯票券並填入相同的「旅程名稱」，就會自動整理在一起。</small></div>'}
-function renderMemories(){let list=data.filter(x=>effectiveStatus(x)==='used'||x.status==='expired').sort((a,b)=>(b.date||'').localeCompare(a.date||''));$('#memoryCount').textContent=list.length+' 個回憶';$('#memories').innerHTML=list.length?list.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${x.cover?`style="background-image:url('${x.cover}')"`:''}>${x.cover?'':icons[x.type]||'🎟️'}</div><div><b>${x.favorite?'❤️ ':''}${esc(x.name)}</b><div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>${x.note?`<div class="muted" style="margin-top:4px">${esc(x.note).slice(0,45)}</div>`:''}</div></div>`).join(''):'<div class="empty">使用過的票券會自動成為回憶收藏。<br><small>也可以手動把票券狀態設成「已使用」。</small></div>'}
+function renderMemories(){let list=data.filter(x=>effectiveStatus(x)==='used'||x.status==='expired').sort((a,b)=>(b.date||'').localeCompare(a.date||''));$('#memoryCount').textContent=list.length+' 個回憶';$('#memories').innerHTML=list.length?list.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div><b>${x.favorite?'❤️ ':''}${esc(x.name)}</b><div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>${x.note?`<div class="muted" style="margin-top:4px">${esc(x.note).slice(0,45)}</div>`:''}</div></div>`).join(''):'<div class="empty">使用過的票券會自動成為回憶收藏。<br><small>也可以手動把票券狀態設成「已使用」。</small></div>'}
 function renderStats(){let total=data.length, used=data.filter(x=>effectiveStatus(x)==='used').length, totalPrice=data.reduce((s,x)=>s+(+x.price||0),0), fav=data.filter(x=>x.favorite).length;$('#statsCards').innerHTML=`<div class="statcard"><span class="muted">全部票券</span><b>${total}</b></div><div class="statcard"><span class="muted">已完成行程</span><b>${used}</b></div><div class="statcard"><span class="muted">票券總金額</span><b>NT$ ${totalPrice.toLocaleString()}</b></div><div class="statcard"><span class="muted">最愛收藏</span><b>${fav}</b></div>`;let counts={};data.forEach(x=>counts[x.type]=(counts[x.type]||0)+1);let max=Math.max(1,...Object.values(counts));$('#typeBars').innerHTML=Object.keys(counts).length?Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`<div class="barrow"><div class="barlabel"><span>${icons[t]||'🎟️'} ${esc(t)}</span><b>${n}</b></div><div class="bar"><i style="width:${n/max*100}%"></i></div></div>`).join(''):'<div class="muted">新增票券後會在這裡產生統計。</div>';let y=new Date().getFullYear(),yd=data.filter(x=>x.date&&new Date(x.date).getFullYear()===y),ySpend=yd.reduce((s,x)=>s+(+x.price||0),0),typeCount={},placeCount={};yd.forEach(x=>{typeCount[x.type]=(typeCount[x.type]||0)+1;if(x.place)placeCount[x.place]=(placeCount[x.place]||0)+1});let topType=Object.entries(typeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—',topPlace=Object.entries(placeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';$('#yearLabel').textContent=y+' 年';$('#yearReview').innerHTML=`<div class="yearhero"><span>${y} 我的票券回顧</span><b>${yd.length} 次出發</b><div style="margin-top:10px;line-height:1.8;font-size:13px">最常活動：${esc(topType)}　・　最常去：${esc(topPlace)}<br>年度票券金額：NT$ ${ySpend.toLocaleString()}</div></div>`;let venueMap={};data.filter(x=>x.place).forEach(x=>{let v=venueMap[x.place]||(venueMap[x.place]={count:0,used:0,last:''});v.count++;if(effectiveStatus(x)==='used')v.used++;if((x.date||'')>v.last)v.last=x.date||''});let venues=Object.entries(venueMap).sort((a,b)=>b[1].count-a[1].count);$('#venueCount').textContent=venues.length+' 個場館';$('#venueGallery').innerHTML=venues.length?venues.slice(0,12).map(([name,v])=>`<div class="venuecard"><b>📍 ${esc(name)}</b><div class="muted" style="margin-top:6px">${v.count} 張票・${v.used} 次完成</div></div>`).join(''):'<div class="empty">新增有地點的票券後，這裡會變成你的場館圖鑑。</div>';let places=data.filter(x=>effectiveStatus(x)==='used'&&x.place).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);$('#recentPlaces').innerHTML=places.length?places.map(x=>`<div class="agenda-item"><div style="font-size:26px">📍</div><div><b>${esc(routeLabel(x))}</b><div class="muted">${esc(x.name)} ・ ${new Date(x.date).toLocaleDateString('zh-TW')}</div></div></div>`).join(''):'<div class="empty">使用過的票券會逐漸形成你的活動足跡。</div>'}
 function renderAll(){renderReminderBanner();renderHero();renderFilterBar();renderTickets();renderCalendar();renderTrips();renderMemories();renderStats()}
-function openEdit(id=''){let x=data.find(v=>v.id===id);$('#formTitle').textContent=x?'編輯票券':'新增票券';$('#editId').value=x?.id||'';$('#type').value=x?.type||'棒球';syncPlaceFields();$('#status').value=x?.status||'auto';$('#name').value=x?.name||'';$('#date').value=x?.date||'';$('#endDate').value=x?.endDate||'';$('#place').value=x?.place||'';$('#origin').value=x?.origin||'';$('#destination').value=x?.destination||'';syncPlaceFields();$('#seat').value=x?.seat||'';$('#price').value=x?.price||'';$('#code').value=x?.code||'';$('#tripName').value=x?.tripName||'';$('#companions').value=x?.companions||'';$('#tags').value=x?.tags||'';$('#reminder').value=x?.reminder||'none';$('#favorite').checked=!!x?.favorite;$('#note').value=x?.note||'';coverData=x?.cover||'';codeImageData=x?.codeImage||'';setPreview('#coverPreview',coverData);setPreview('#codePreview',codeImageData);syncMediaWraps();setEditTab('basic');$('#editDlg').showModal()}
+function openEdit(id=''){let x=data.find(v=>v.id===id);$('#formTitle').textContent=x?'編輯票券':'新增票券';$('#editId').value=x?.id||'';$('#type').value=x?.type||'棒球';syncPlaceFields();$('#status').value=x?.status||'auto';$('#name').value=x?.name||'';$('#date').value=x?.date||'';$('#endDate').value=x?.endDate||'';$('#place').value=x?.place||'';$('#origin').value=x?.origin||'';$('#destination').value=x?.destination||'';syncPlaceFields();$('#seat').value=x?.seat||'';$('#price').value=x?.price||'';$('#code').value=x?.code||'';$('#tripName').value=x?.tripName||'';$('#companions').value=x?.companions||'';$('#tags').value=x?.tags||'';$('#reminder').value=x?.reminder||'none';$('#favorite').checked=!!x?.favorite;$('#note').value=x?.note||'';coverData=x?.cover||'';codeImageData=x?.codeImage||'';setPreview('#coverPreview',mediaSrc(coverData));setPreview('#codePreview',mediaSrc(codeImageData));syncMediaWraps();setEditTab('basic');$('#editDlg').showModal()}
 function setPreview(sel,val){let el=$(sel);if(val){el.style.display='block';el.style.backgroundImage=`url('${val}')`}else{el.style.display='none';el.style.backgroundImage='none'}}
 async function fileToData(file,max=1200,quality=.78){
   if(!file) throw new Error('NO_FILE');
@@ -430,7 +505,7 @@ async function processPickedImage(input,kind){
   if(!file){input.value='';return}
   try{
     setMediaBusy(kind,true);
-    const val=await fileToData(file,kind==='cover'?1280:1600,kind==='cover'?.72:.86);
+    const val=await fileToData(file,kind==='cover'?1000:1400,kind==='cover'?.62:.78);
     if(kind==='cover'){
       coverData=val; setPreview('#coverPreview',coverData);
     }else{
@@ -467,60 +542,45 @@ function syncMediaWraps(){
 });
 $('#removeCover').onclick=()=>{coverData='';setPreview('#coverPreview','');syncMediaWraps()};
 $('#removeCode').onclick=()=>{codeImageData='';setPreview('#codePreview','');syncMediaWraps()};
-$('#form').onsubmit=e=>{
+$('#form').onsubmit=async e=>{
   e.preventDefault();
+  const saveBtn=e.submitter||$('#form').querySelector('[type="submit"]');
+  if(saveBtn){saveBtn.disabled=true;saveBtn.dataset.oldText=saveBtn.textContent;saveBtn.textContent='儲存中…'}
   try{
-    const type=$('#type').value;
-    const route=isRouteType(type);
-    const name=$('#name').value.trim();
+    const type=$('#type').value, route=isRouteType(type), name=$('#name').value.trim();
     if(!name){alert('請輸入活動名稱');setEditTab('basic');$('#name').focus();return}
-    if(route){
-      if(!$('#origin').value.trim()&&!$('#destination').value.trim()){
-        alert(type==='機票'?'請至少輸入起點或終點機場':'請至少輸入起點或終點');
-        setEditTab('basic');$('#origin').focus();return
-      }
+    if(route&&!$('#origin').value.trim()&&!$('#destination').value.trim()){
+      alert(type==='機票'?'請至少輸入起點或終點機場':'請至少輸入起點或終點');
+      setEditTab('basic');$('#origin').focus();return
     }
-    let id=$('#editId').value||newTicketId(),old=data.find(x=>x.id===id);
+    let id=$('#editId').value||newTicketId(), old=data.find(x=>x.id===id);
+    const savedCover=await saveTicketMedia(id,'cover',coverData,old?.cover||'');
+    const savedCode=await saveTicketMedia(id,'code',codeImageData,old?.codeImage||'');
     let item={
-      id,
-      type,
-      status:$('#status').value,
-      name,
-      date:$('#date').value,
-      endDate:$('#endDate').value,
+      id,type,status:$('#status').value,name,date:$('#date').value,endDate:$('#endDate').value,
       place:route?'':$('#place').value.trim(),
       origin:route?$('#origin').value.trim():'',
       destination:route?$('#destination').value.trim():'',
-      seat:$('#seat').value.trim(),
-      price:$('#price').value,
-      code:$('#code').value.trim(),
-      tripName:$('#tripName').value.trim(),
-      companions:$('#companions').value.trim(),
-      tags:$('#tags').value.trim(),
-      reminder:$('#reminder').value,
-      favorite:$('#favorite').checked,
-      cover:coverData,
-      codeImage:codeImageData,
-      note:$('#note').value.trim(),
-      createdAt:old?.createdAt||new Date().toISOString(),
-      updatedAt:new Date().toISOString()
+      seat:$('#seat').value.trim(),price:$('#price').value,code:$('#code').value.trim(),
+      tripName:$('#tripName').value.trim(),companions:$('#companions').value.trim(),
+      tags:$('#tags').value.trim(),reminder:$('#reminder').value,favorite:$('#favorite').checked,
+      cover:savedCover,codeImage:savedCode,note:$('#note').value.trim(),
+      createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()
     };
     const next=old?data.map(x=>x.id===id?item:x):[...data,item];
     localStorage.setItem(KEY,JSON.stringify(next));
     data=next;
     renderAll();
-    $('#form').reset();
-    coverData='';codeImageData='';
+    $('#form').reset();coverData='';codeImageData='';
     $('#editDlg').close();
   }catch(err){
     console.error('TicketBox save failed',err);
-    const msg=(err&&err.name==='QuotaExceededError')
-      ?'票券圖片可能太大，瀏覽器儲存空間不足。請先移除較大的封面或 QR 圖片後再試一次。'
-      :'儲存票券時發生錯誤，請重新開啟 TicketBox 再試一次。';
-    alert(msg);
+    alert('照片或票券儲存失敗。請重新開啟 TicketBox 後再試一次；若仍失敗，可能是 Safari 網站儲存空間已被系統限制。');
+  }finally{
+    if(saveBtn){saveBtn.disabled=false;saveBtn.textContent=saveBtn.dataset.oldText||'儲存票券'}
   }
 };
-function showDetail(id){let x=data.find(v=>v.id===id);if(!x)return;let st=effectiveStatus(x), hasCode=!!x.codeImage;$('#detailContent').innerHTML=`<div class="detailcover" ${x.cover?`style="background-image:url('${x.cover}')"`:''}>${x.cover?'':icons[x.type]||'🎟️'}</div><div class="detailbody ${settings.privacy?'privacy':''}" id="detailBody"><div style="display:flex;justify-content:space-between;gap:10px"><div><h2>${x.favorite?'❤️ ':''}${esc(x.name)}</h2><div class="muted">${esc(x.type)}・${statusText(st)}</div></div><button class="close" onclick="detailDlg.close()">×</button></div><div class="detailgrid"><div class="detailcell">日期時間<b>${fmtDate(x.date)}</b></div><div class="detailcell">地點 / 路線<b>${esc(routeLabel(x)||'—')}</b></div><div class="detailcell">座位 / 車次<b>${esc(x.seat||'—')}</b></div><div class="detailcell">票價<b>${x.price?'NT$ '+Number(x.price).toLocaleString():'—'}</b></div></div>${x.tripName?`<div class="muted" style="margin-top:12px">🧳 ${esc(x.tripName)}</div>`:''}${x.companions?`<div class="muted" style="margin-top:6px">👥 ${esc(x.companions)}</div>`:''}${x.tags?`<div class="muted" style="margin-top:6px">🏷️ ${esc(x.tags)}</div>`:''}${x.reminder&&x.reminder!=='none'?`<div class="muted" style="margin-top:6px">⏰ ${reminderText(x.reminder)}</div>`:''}${x.note?`<div style="margin-top:14px;line-height:1.6">${esc(x.note).replace(/\n/g,'<br>')}</div>`:''}${hasCode?`<img class="codeimg" id="detailCode" src="${x.codeImage}" alt="票券 QR 或條碼"><div class="privacyHint" id="privacyHint">${settings.privacy?'票碼目前已隱藏':'票碼目前已顯示'}</div><button class="code-toggle-btn" id="codeToggleBtn" type="button" onclick="toggleCodeVisibility()">${settings.privacy?'👁️ 顯示 QR / 條碼':'🙈 隱藏 QR / 條碼'}</button><button class="code-zoom-btn" type="button" onclick="openQRZoom('${x.id}')">🔍 放大顯示 QR / 條碼</button>`:''}<div class="actions">${x.place?`<button class="secondary" onclick="openMap('${encodeURIComponent(isRouteType(x.type)?(x.destination||x.origin):x.place)}')">導航</button>`:''}<button class="secondary" onclick="downloadICS('${x.id}')">加入行事曆</button><button class="secondary" onclick="shareTicket('${x.id}')">分享</button></div><div class="actions"><button class="secondary" onclick="detailDlg.close();openEdit('${x.id}')">編輯</button><button class="secondary" onclick="duplicateTicket('${x.id}')">複製</button></div><div class="actions"><button class="secondary" onclick="toggleUsed('${x.id}')">${st==='used'?'標記未使用':'標記已使用'}</button><button class="danger" onclick="deleteTicket('${x.id}')">刪除</button></div></div>`;$('#detailDlg').showModal();if(hasCode)$('#detailCode').onclick=()=>toggleCodeVisibility()}
+async function showDetail(id){let x=data.find(v=>v.id===id);if(!x)return;let st=effectiveStatus(x), coverSrc=await mediaGet(x.cover||''), codeSrc=await mediaGet(x.codeImage||''), hasCode=!!codeSrc;$('#detailContent').innerHTML=`<div class="detailcover" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div class="detailbody ${settings.privacy?'privacy':''}" id="detailBody"><div style="display:flex;justify-content:space-between;gap:10px"><div><h2>${x.favorite?'❤️ ':''}${esc(x.name)}</h2><div class="muted">${esc(x.type)}・${statusText(st)}</div></div><button class="close" onclick="detailDlg.close()">×</button></div><div class="detailgrid"><div class="detailcell">日期時間<b>${fmtDate(x.date)}</b></div><div class="detailcell">地點 / 路線<b>${esc(routeLabel(x)||'—')}</b></div><div class="detailcell">座位 / 車次<b>${esc(x.seat||'—')}</b></div><div class="detailcell">票價<b>${x.price?'NT$ '+Number(x.price).toLocaleString():'—'}</b></div></div>${x.tripName?`<div class="muted" style="margin-top:12px">🧳 ${esc(x.tripName)}</div>`:''}${x.companions?`<div class="muted" style="margin-top:6px">👥 ${esc(x.companions)}</div>`:''}${x.tags?`<div class="muted" style="margin-top:6px">🏷️ ${esc(x.tags)}</div>`:''}${x.reminder&&x.reminder!=='none'?`<div class="muted" style="margin-top:6px">⏰ ${reminderText(x.reminder)}</div>`:''}${x.note?`<div style="margin-top:14px;line-height:1.6">${esc(x.note).replace(/\n/g,'<br>')}</div>`:''}${hasCode?`<img class="codeimg" id="detailCode" src="${codeSrc}" alt="票券 QR 或條碼"><div class="privacyHint" id="privacyHint">${settings.privacy?'票碼目前已隱藏':'票碼目前已顯示'}</div><button class="code-toggle-btn" id="codeToggleBtn" type="button" onclick="toggleCodeVisibility()">${settings.privacy?'👁️ 顯示 QR / 條碼':'🙈 隱藏 QR / 條碼'}</button><button class="code-zoom-btn" type="button" onclick="openQRZoom('${x.id}')">🔍 放大顯示 QR / 條碼</button>`:''}<div class="actions">${x.place?`<button class="secondary" onclick="openMap('${encodeURIComponent(isRouteType(x.type)?(x.destination||x.origin):x.place)}')">導航</button>`:''}<button class="secondary" onclick="downloadICS('${x.id}')">加入行事曆</button><button class="secondary" onclick="shareTicket('${x.id}')">分享</button></div><div class="actions"><button class="secondary" onclick="detailDlg.close();openEdit('${x.id}')">編輯</button><button class="secondary" onclick="duplicateTicket('${x.id}')">複製</button></div><div class="actions"><button class="secondary" onclick="toggleUsed('${x.id}')">${st==='used'?'標記未使用':'標記已使用'}</button><button class="danger" onclick="deleteTicket('${x.id}')">刪除</button></div></div>`;$('#detailDlg').showModal();if(hasCode)$('#detailCode').onclick=()=>toggleCodeVisibility()}
 
 function toggleCodeVisibility(){
   const body=$('#detailBody'), hint=$('#privacyHint'), btn=$('#codeToggleBtn');
@@ -544,17 +604,17 @@ if(window.visualViewport){
 }
 syncIOSBottom();
 
-function openQRZoom(id){let x=data.find(v=>v.id===id);if(!x||!x.codeImage)return;$('#qrZoomImg').src=x.codeImage;$('#qrZoomDlg').showModal()}
+async function openQRZoom(id){let x=data.find(v=>v.id===id);if(!x||!x.codeImage)return;let src=await mediaGet(x.codeImage);if(!src)return;$('#qrZoomImg').src=src;$('#qrZoomDlg').showModal()}
 function closeQRZoom(){let d=$('#qrZoomDlg');if(d&&d.open)d.close()}
 window.openQRZoom=openQRZoom;window.closeQRZoom=closeQRZoom;
-window.showDetail=showDetail;window.duplicateTicket=id=>{let x=data.find(v=>v.id===id);if(!x)return;let c={...x,id:crypto.randomUUID(),name:x.name+'（副本）',status:'upcoming',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};data.push(c);persist();$('#detailDlg').close();showDetail(c.id)};window.downloadICS=id=>{let x=data.find(v=>v.id===id);if(!x||!x.date)return alert('這張票券還沒有日期時間');let f=d=>new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z'),start=f(x.date),end=f(x.endDate||new Date(new Date(x.date).getTime()+2*3600000)),ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TicketBox//ZH-TW\r\nBEGIN:VEVENT\r\nUID:${x.id}@ticketbox\r\nDTSTART:${start}\r\nDTEND:${end}\r\nSUMMARY:${String(x.name).replace(/[,;]/g,' ')}\r\nLOCATION:${String(x.place||'').replace(/[,;]/g,' ')}\r\nDESCRIPTION:${String(x.seat||'').replace(/[,;]/g,' ')}\r\nEND:VEVENT\r\nEND:VCALENDAR`;let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));a.download=(x.name||'TicketBox')+'.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};window.shareTicket=async id=>{let x=data.find(v=>v.id===id);if(!x)return;let text=`${x.name}\n${fmtDate(x.date)}${x.place?'\n'+x.place:''}${x.seat?'\n'+x.seat:''}`;try{if(navigator.share)await navigator.share({title:x.name,text});else{await navigator.clipboard.writeText(text);alert('已複製可分享資訊（不含 QR Code 與票號）')}}catch(e){}};window.toggleUsed=id=>{let x=data.find(v=>v.id===id);if(!x)return;x.status=effectiveStatus(x)==='used'?'upcoming':'used';x.updatedAt=new Date().toISOString();persist();$('#detailDlg').close();showDetail(id)};window.deleteTicket=id=>{if(confirm('確定要刪除這張票券？')){data=data.filter(x=>x.id!==id);persist();$('#detailDlg').close()}};
+window.showDetail=showDetail;window.duplicateTicket=id=>{let x=data.find(v=>v.id===id);if(!x)return;let c={...x,id:crypto.randomUUID(),name:x.name+'（副本）',status:'upcoming',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};data.push(c);persist();$('#detailDlg').close();showDetail(c.id)};window.downloadICS=id=>{let x=data.find(v=>v.id===id);if(!x||!x.date)return alert('這張票券還沒有日期時間');let f=d=>new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z'),start=f(x.date),end=f(x.endDate||new Date(new Date(x.date).getTime()+2*3600000)),ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TicketBox//ZH-TW\r\nBEGIN:VEVENT\r\nUID:${x.id}@ticketbox\r\nDTSTART:${start}\r\nDTEND:${end}\r\nSUMMARY:${String(x.name).replace(/[,;]/g,' ')}\r\nLOCATION:${String(x.place||'').replace(/[,;]/g,' ')}\r\nDESCRIPTION:${String(x.seat||'').replace(/[,;]/g,' ')}\r\nEND:VEVENT\r\nEND:VCALENDAR`;let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));a.download=(x.name||'TicketBox')+'.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};window.shareTicket=async id=>{let x=data.find(v=>v.id===id);if(!x)return;let text=`${x.name}\n${fmtDate(x.date)}${x.place?'\n'+x.place:''}${x.seat?'\n'+x.seat:''}`;try{if(navigator.share)await navigator.share({title:x.name,text});else{await navigator.clipboard.writeText(text);alert('已複製可分享資訊（不含 QR Code 與票號）')}}catch(e){}};window.toggleUsed=id=>{let x=data.find(v=>v.id===id);if(!x)return;x.status=effectiveStatus(x)==='used'?'upcoming':'used';x.updatedAt=new Date().toISOString();persist();$('#detailDlg').close();showDetail(id)};window.deleteTicket=async id=>{if(confirm('確定要刪除這張票券？')){let x=data.find(v=>v.id===id);if(x){await mediaDelete(x.cover);await mediaDelete(x.codeImage)}data=data.filter(x=>x.id!==id);persist();$('#detailDlg').close()}};
 $('#type').addEventListener('change',syncPlaceFields);
 $('#add').onclick=()=>openEdit();$('#settingsBtn').onclick=()=>{
   $('#privacySetting').checked=settings.privacy;
   let snap=localStorage.getItem(SNAPKEY);
   $('#migrationStatus').textContent=snap?'已建立升級前快照・舊票券保留中':'目前無舊資料可建立快照';
   $('#lastBackupStatus').textContent=settings.lastBackupAt?'上次匯出：'+new Date(settings.lastBackupAt).toLocaleString('zh-TW'):'尚未匯出備份';
-  $('#storageUsage').textContent=`${data.length} 張票券・約 ${storageUsageText()}`;
+  $('#storageUsage').textContent=`${data.length} 張票券・文字資料約 ${storageUsageText()}・照片使用圖片資料庫`;
   $('#versionMeta').textContent='TicketBox v'+APP_VERSION;
   $('#settingsDlg').showModal()
 };$$('[data-close]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close).close());
@@ -562,14 +622,21 @@ $('#search').oninput=renderTickets;$('#filterToggle').onclick=()=>$('#filterBar'
 $$('.nav button').forEach(b=>b.onclick=()=>{$$('.nav button').forEach(z=>z.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#view'+b.dataset.view).classList.add('active');if(b.dataset.view==='Calendar')renderCalendar();if(b.dataset.view==='Trips')renderTrips();if(b.dataset.view==='Stats')renderStats();if(b.dataset.view==='Memories')renderMemories();const app=document.querySelector('.app');if(app)app.scrollTo({top:0,left:0,behavior:'instant'});});
 $('#prevMonth').onclick=()=>{calCursor=new Date(calCursor.getFullYear(),calCursor.getMonth()-1,1);renderCalendar()};$('#nextMonth').onclick=()=>{calCursor=new Date(calCursor.getFullYear(),calCursor.getMonth()+1,1);renderCalendar()};
 $('#privacySetting').onchange=e=>{settings.privacy=e.target.checked;saveSettings()};
-$('#exportBtn').onclick=()=>{let now=new Date().toISOString();settings.lastBackupAt=now;saveSettings();let payload={app:'TicketBox',version:APP_VERSION,exportedAt:now,data,settings},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TicketBox-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);$('#lastBackupStatus').textContent='上次匯出：'+new Date(now).toLocaleString('zh-TW')};
-$('#importInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());let incoming=Array.isArray(obj)?obj:obj.data;if(!Array.isArray(incoming))throw new Error();incoming=incoming.map(migrateTicket);if(confirm(`找到 ${incoming.length} 張票券。要覆蓋目前資料嗎？\n按「取消」將改為合併。`))data=incoming;else{let ids=new Set(data.map(x=>x.id));data=[...data,...incoming.filter(x=>!ids.has(x.id))]}persist();alert('匯入完成');$('#settingsDlg').close()}catch(err){alert('這不是有效的 TicketBox 備份檔')}};
+$('#exportBtn').onclick=async()=>{let now=new Date().toISOString();settings.lastBackupAt=now;saveSettings();let exported=[];for(const x of data){exported.push({...x,cover:await mediaGet(x.cover||''),codeImage:await mediaGet(x.codeImage||'')})}let payload={app:'TicketBox',version:APP_VERSION,exportedAt:now,data:exported,settings},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TicketBox-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);$('#lastBackupStatus').textContent='上次匯出：'+new Date(now).toLocaleString('zh-TW')};
+$('#importInput').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let obj=JSON.parse(await f.text());let incoming=Array.isArray(obj)?obj:obj.data;if(!Array.isArray(incoming))throw new Error();incoming=incoming.map(migrateTicket);for(const x of incoming){if(x.cover&&x.cover.startsWith('data:image/'))x.cover=await saveTicketMedia(x.id,'cover',x.cover,'');if(x.codeImage&&x.codeImage.startsWith('data:image/'))x.codeImage=await saveTicketMedia(x.id,'code',x.codeImage,'')}if(confirm(`找到 ${incoming.length} 張票券。要覆蓋目前資料嗎？\n按「取消」將改為合併。`))data=incoming;else{let ids=new Set(data.map(x=>x.id));data=[...data,...incoming.filter(x=>!ids.has(x.id))]}persist();await hydrateAllMedia();renderAll();alert('匯入完成');$('#settingsDlg').close()}catch(err){console.error(err);alert('這不是有效的 TicketBox 備份檔，或圖片匯入失敗')}};
 $('#clearBtn').onclick=()=>{if(confirm('確定清除所有 TicketBox 資料？此動作無法復原，建議先匯出備份。')){data=[];persist();$('#settingsDlg').close()}};
 function syncNavHeight(){}
 
 
 
 $('#upcomingTrack')?.addEventListener('scroll',updateUpcomingDots,{passive:true});
-renderAll();if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+(async()=>{
+  try{
+    await migrateInlineMedia();
+    await hydrateAllMedia();
+  }catch(e){console.warn('TicketBox media init',e)}
+  renderAll();
+  if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+})();
 </script>
 </body></html>
