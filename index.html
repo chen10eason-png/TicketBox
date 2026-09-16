@@ -212,7 +212,16 @@
 .type-ticket-empty{padding:16px;text-align:center;color:#98a2b3;font-size:13px}
 
 
-.review-toolbar{display:flex;justify-content:space-between;align-items:center;background:#fff;padding:12px 14px;border-radius:16px;margin-bottom:12px;box-shadow:var(--shadow)}.review-toolbar select{width:auto;margin:0}.record-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:15px}.record-card{background:#fff;border-radius:15px;padding:12px;box-shadow:var(--shadow)}.record-card small{color:#98a2b3}.record-card b{display:block;font-size:17px;margin-top:5px}.place-rank{display:grid;gap:7px;margin-bottom:10px}.place-rank button{display:flex;justify-content:space-between;width:100%;border:0;background:#fff;border-radius:13px;padding:11px;box-shadow:var(--shadow);color:inherit}.spend-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.spend-chip{padding:4px 7px;border-radius:99px;background:#f2f4f7;font-size:10px;font-weight:700;color:#475467}
+/* v1.10.2 rebuilt review page */
+.review-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border-radius:16px;padding:12px 14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.review-toolbar select{width:auto;min-width:112px;margin:0}
+.place-rank{display:grid;gap:8px;margin-bottom:12px}
+.place-rank-btn{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;border:0;background:#fff;border-radius:14px;padding:11px 12px;box-shadow:var(--shadow);text-align:left;color:inherit}
+.place-rank-btn.active{outline:2px solid #dbeafe}
+.place-rank-btn span{font-size:11px;color:#667085}
+.spend-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.spend-chip{padding:4px 7px;border-radius:999px;background:#f2f4f7;color:#475467;font-size:10px;font-weight:700}
+
 </style>
 </head>
 <body>
@@ -243,15 +252,18 @@
   </section>
 
   <section id="viewMemories" class="view">
-<div class="review-toolbar"><b>回顧年份</b><select id="reviewYear"></select></div>
-<div class="record-grid" id="recordGrid"></div>
-<div class="sectionhead"><h2>最常去的地方</h2><span class="muted">點擊查看票券</span></div>
-<div id="placeRank" class="place-rank"></div><div id="placeTicketPanel" class="type-ticket-panel"></div>
     <div class="sectionhead"><h2>回憶收藏</h2><span id="memoryCount" class="muted"></span></div><div id="memories" class="tickets"></div>
   </section>
 
   <section id="viewStats" class="view">
+    <div class="review-toolbar">
+      <div><b>回顧年份</b><div class="muted">統計會跟著年份切換</div></div>
+      <select id="reviewYear"></select>
+    </div>
     <div class="statsgrid" id="statsCards"></div>
+    <div class="sectionhead"><h2>最常去的地方</h2><span class="muted">點擊查看票券</span></div>
+    <div id="placeRank" class="place-rank"></div>
+    <div id="placeTicketPanel" class="type-ticket-panel"></div>
     <div class="sectionhead"><h2>類型統計</h2><span class="muted">點選類型查看票券</span></div>
     <div class="statcard" id="typeBars"></div>
     <div id="typeTicketPanel" class="type-ticket-panel"></div>
@@ -351,7 +363,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.10.1';
+const APP_VERSION='1.10.2';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -486,85 +498,121 @@ function renderCalendar(){let y=calCursor.getFullYear(),m=calCursor.getMonth();$
 function renderTrips(){let groups={};data.filter(x=>x.tripName).forEach(x=>(groups[x.tripName]??=[]).push(x));let names=Object.keys(groups);$('#tripCount').textContent=names.length+' 趟';$('#trips').innerHTML=names.length?names.sort((a,b)=>{let da=Math.min(...groups[a].map(x=>new Date(x.date||'2999-01-01').getTime())),db=Math.min(...groups[b].map(x=>new Date(x.date||'2999-01-01').getTime()));return da-db}).map(name=>{let items=groups[name].sort((a,b)=>(a.date||'').localeCompare(b.date||'')),people=[...new Set(items.flatMap(x=>(x.companions||'').split(/[,，、]/).map(z=>z.trim()).filter(Boolean)))],start=items.find(x=>x.date)?.date,done=items.filter(x=>effectiveStatus(x)==='used'||effectiveStatus(x)==='expired').length,pct=Math.round(done/items.length*100),next=items.find(x=>x.date&&effectiveStatus(x)==='upcoming'&&new Date(x.date)>=new Date());return `<div class="tripcard"><div class="triphead"><div><b style="font-size:17px">🧳 ${esc(name)}</b><div class="muted" style="margin-top:5px">${start?new Date(start).toLocaleDateString('zh-TW'):''}・${items.length} 張票券</div></div><span class="badge">${people.length?people.length+' 位同行者':'個人旅程'}</span></div><div class="trip-progress"><div class="trip-progress-row"><span>旅程進度 ${done}/${items.length}</span><span>${pct}%</span></div><div class="trip-progress-bar"><i style="width:${pct}%"></i></div>${next?`<div class="muted" style="margin-top:7px">下一站：${esc(next.name)}・${fmtDate(next.date)}</div>`:''}</div><div class="tripmeta">${people.slice(0,4).map(p=>`<span class="softpill">👤 ${esc(p)}</span>`).join('')}</div><div style="margin-top:12px;display:grid;gap:7px">${items.map(x=>`<button class="smallbtn" style="text-align:left" onclick="showDetail('${x.id}')">${icons[x.type]||'🎟️'} ${esc(x.name)}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</button>`).join('')}</div></div>`}).join(''):'<div class="empty">還沒有旅程。<br><small>編輯票券並填入相同的「旅程名稱」，就會自動整理在一起。</small></div>'}
 function renderMemories(){let list=data.filter(x=>effectiveStatus(x)==='used'||x.status==='expired').sort((a,b)=>(b.date||'').localeCompare(a.date||''));$('#memoryCount').textContent=list.length+' 個回憶';$('#memories').innerHTML=list.length?list.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div><b>${x.favorite?'❤️ ':''}${esc(x.name)}</b><div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>${x.note?`<div class="muted" style="margin-top:4px">${esc(x.note).slice(0,45)}</div>`:''}</div></div>`).join(''):'<div class="empty">使用過的票券會自動成為回憶收藏。<br><small>也可以手動把票券狀態設成「已使用」。</small></div>'}
 
-function reviewData(){return selectedReviewYear==='all'?data:data.filter(x=>x.date&&String(new Date(x.date).getFullYear())===selectedReviewYear)}
-function money(n){return '$'+Math.round(Number(n)||0).toLocaleString('zh-TW')}
-function jsq(v){return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ')}
-function ticketSpend(x){return Number(x.price)||0}
-function renderReviewHeader(){
- let y=[...new Set(data.filter(x=>x.date).map(x=>String(new Date(x.date).getFullYear())))].sort((a,b)=>b-a),el=$('#reviewYear');
- if(selectedReviewYear!=='all'&&!y.includes(selectedReviewYear))selectedReviewYear='all';
- el.innerHTML='<option value="all">全部年份</option>'+y.map(v=>`<option value="${v}">${v} 年</option>`).join('');el.value=selectedReviewYear;
- let rd=reviewData(),sp=rd.reduce((a,x)=>a+ticketSpend(x),0),c={};rd.forEach(x=>c[x.type]=(c[x.type]||0)+1);let top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
- $('#recordGrid').innerHTML=`<div class="record-card"><small>🎟️ 活動次數</small><b>${rd.length} 次</b></div><div class="record-card"><small>💰 總花費</small><b>${money(sp)}</b><div class="muted">平均 ${money(rd.length?sp/rd.length:0)}</div></div><div class="record-card"><small>🏆 最常類型</small><b>${top?(icons[top[0]]||'🎟️')+' '+esc(top[0]):'—'}</b></div><div class="record-card"><small>📅 統計範圍</small><b>${selectedReviewYear==='all'?'全部':selectedReviewYear}</b></div>`;
- let places={};rd.forEach(x=>{let q=(x.type==='交通'||x.type==='機票')?(x.destination||''):x.place;if(q)places[q]=(places[q]||0)+1});
- $('#placeRank').innerHTML=Object.entries(places).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([q,n],i)=>`<button onclick="toggleReviewPlace('${jsq(q)}')"><b>${i+1}. ${esc(q)}</b><span>${n} 次</span></button>`).join('')||'<div class="empty">還沒有地點紀錄。</div>';
+function reviewData(){
+  if(selectedReviewYear==='all')return data;
+  return data.filter(x=>{
+    if(!x.date)return false;
+    const d=new Date(x.date);
+    return !Number.isNaN(d.getTime())&&String(d.getFullYear())===selectedReviewYear;
+  });
 }
-function toggleReviewPlace(q){selectedReviewPlace=selectedReviewPlace===q?'':q;renderPlacePanel()}window.toggleReviewPlace=toggleReviewPlace;
-function renderPlacePanel(){let el=$('#placeTicketPanel');if(!selectedReviewPlace){el.innerHTML='';return}let l=reviewData().filter(x=>x.place===selectedReviewPlace||x.destination===selectedReviewPlace).sort((a,b)=>(b.date||'').localeCompare(a.date||''));el.innerHTML=`<div class="type-ticket-head"><b>📍 ${esc(selectedReviewPlace)}・${l.length} 次</b><button class="smallbtn" onclick="toggleReviewPlace('${jsq(selectedReviewPlace)}')">收起</button></div><div class="type-ticket-list">${l.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div><b>${esc(x.name)}</b><div class="muted">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}</div></div></div>`).join('')}</div>`}
+function money(n){return 'NT$ '+Math.round(Number(n)||0).toLocaleString('zh-TW')}
+function ticketSpend(x){return Number(x.price)||0}
+function jsq(v){return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ')}
+
+function renderReviewYear(){
+  const el=$('#reviewYear'); if(!el)return;
+  const years=[...new Set(data.filter(x=>x.date).map(x=>new Date(x.date)).filter(d=>!Number.isNaN(d.getTime())).map(d=>String(d.getFullYear())))].sort((a,b)=>Number(b)-Number(a));
+  if(selectedReviewYear!=='all'&&!years.includes(selectedReviewYear))selectedReviewYear='all';
+  el.innerHTML='<option value="all">全部年份</option>'+years.map(y=>`<option value="${y}">${y} 年</option>`).join('');
+  el.value=selectedReviewYear;
+}
+
 function renderTypeTicketPanel(){
-  const panel=$('#typeTicketPanel');
-  if(!panel)return;
+  const panel=$('#typeTicketPanel'); if(!panel)return;
   if(!selectedReviewType){panel.innerHTML='';return}
   const list=reviewData().filter(x=>x.type===selectedReviewType).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!list.length){panel.innerHTML='';return}
-  panel.innerHTML=`<div class="type-ticket-head"><div><b>${icons[selectedReviewType]||'🎟️'} ${esc(selectedReviewType)}・${list.length} 次</b><div class="spend-meta"><span class="spend-chip">總花費 ${money(list.reduce((a,x)=>a+ticketSpend(x),0))}</span><span class="spend-chip">平均 ${money(list.length?list.reduce((a,x)=>a+ticketSpend(x),0)/list.length:0)}</span></div></div><button class="smallbtn" type="button" onclick="toggleReviewType('${jsq(selectedReviewType)}')">收起</button></div><div class="type-ticket-list">${list.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div><b>${x.favorite?'❤️ ':''}${esc(x.name)}</b><div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>${x.seat?`<div class="muted" style="margin-top:4px">🎫 ${esc(x.seat)}</div>`:''}${x.note?`<div class="muted" style="margin-top:4px">${esc(x.note).slice(0,45)}</div>`:''}</div></div>`).join('')}</div>`;
+  const spend=list.reduce((sum,x)=>sum+ticketSpend(x),0);
+  panel.innerHTML=`<div class="type-ticket-head"><div><b>${icons[selectedReviewType]||'🎟️'} ${esc(selectedReviewType)}・${list.length} 次</b><div class="spend-meta"><span class="spend-chip">總花費 ${money(spend)}</span><span class="spend-chip">平均 ${money(list.length?spend/list.length:0)}</span></div></div><button class="smallbtn" type="button" onclick="toggleReviewType('${jsq(selectedReviewType)}')">收起</button></div><div class="type-ticket-list">${list.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div><b>${x.favorite?'❤️ ':''}${esc(x.name)}</b><div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div><div class="spend-meta">${ticketSpend(x)?`<span class="spend-chip">${money(ticketSpend(x))}</span>`:''}${x.seat?`<span class="spend-chip">${esc(x.seat)}</span>`:''}</div></div></div>`).join('')}</div>`;
 }
 function toggleReviewType(type){
   selectedReviewType=selectedReviewType===type?'':type;
+  selectedReviewPlace='';
   renderStats();
 }
 window.toggleReviewType=toggleReviewType;
+
+function renderPlacePanel(){
+  const panel=$('#placeTicketPanel'); if(!panel)return;
+  if(!selectedReviewPlace){panel.innerHTML='';return}
+  const list=reviewData().filter(x=>{
+    const place=(x.type==='交通'||x.type==='機票')?(x.destination||x.origin||''):(x.place||'');
+    return place===selectedReviewPlace;
+  }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  panel.innerHTML=list.length?`<div class="type-ticket-head"><b>📍 ${esc(selectedReviewPlace)}・${list.length} 次</b><button class="smallbtn" type="button" onclick="toggleReviewPlace('${jsq(selectedReviewPlace)}')">收起</button></div><div class="type-ticket-list">${list.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div><b>${esc(x.name)}</b><div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''} ・ ${esc(x.type)}</div></div></div>`).join('')}</div>`:'';
+}
+function toggleReviewPlace(place){
+  selectedReviewPlace=selectedReviewPlace===place?'':place;
+  selectedReviewType='';
+  renderStats();
+}
+window.toggleReviewPlace=toggleReviewPlace;
+
 function renderStats(){
-  renderReviewHeader();
+  renderReviewYear();
+  const rd=reviewData();
+  const total=rd.length;
+  const used=rd.filter(x=>effectiveStatus(x)==='used'||effectiveStatus(x)==='expired').length;
+  const totalPrice=rd.reduce((sum,x)=>sum+ticketSpend(x),0);
+  const fav=rd.filter(x=>x.favorite).length;
+
+  // Original top 4 cards restored.
+  $('#statsCards').innerHTML=`<div class="statcard"><span class="muted">全部票券</span><b>${total}</b></div><div class="statcard"><span class="muted">已完成行程</span><b>${used}</b></div><div class="statcard"><span class="muted">票券總金額</span><b>${money(totalPrice)}</b></div><div class="statcard"><span class="muted">最愛收藏</span><b>${fav}</b></div>`;
+
+  // Most visited places.
+  const places={};
+  rd.forEach(x=>{
+    const place=(x.type==='交通'||x.type==='機票')?(x.destination||x.origin||''):(x.place||'');
+    if(place)places[place]=(places[place]||0)+1;
+  });
+  $('#placeRank').innerHTML=Object.entries(places).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([place,n],i)=>`<button class="place-rank-btn ${selectedReviewPlace===place?'active':''}" type="button" onclick="toggleReviewPlace('${jsq(place)}')"><b>${i+1}. ${esc(place)}</b><span>${n} 次</span></button>`).join('')||'<div class="empty">新增有地點的票券後，這裡會顯示最常去的地方。</div>';
   renderPlacePanel();
 
-  const rd=reviewData();
+  // Type count + spend + share + average.
   const counts={};
   rd.forEach(x=>counts[x.type]=(counts[x.type]||0)+1);
   const max=Math.max(1,...Object.values(counts));
-  const totalSpend=rd.reduce((sum,x)=>sum+ticketSpend(x),0);
-
-  const typeBars=$('#typeBars');
-  if(typeBars){
-    typeBars.innerHTML=Object.keys(counts).length
-      ? Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([t,n])=>{
-          const ts=rd.filter(x=>x.type===t).reduce((sum,x)=>sum+ticketSpend(x),0);
-          const pct=totalSpend?Math.round(ts/totalSpend*100):0;
-          return `<button type="button" class="type-stat-btn ${selectedReviewType===t?'active':''}" onclick="toggleReviewType('${jsq(t)}')">
-            <div class="barrow">
-              <div class="barlabel"><span>${icons[t]||'🎟️'} ${esc(t)}</span><span class="type-count-pill">${n} 次</span></div>
-              <div class="bar"><i style="width:${n/max*100}%"></i></div>
-              <div class="spend-meta"><span class="spend-chip">總花費 ${money(ts)}</span><span class="spend-chip">${pct}%</span><span class="spend-chip">平均 ${money(n?ts/n:0)}</span></div>
-            </div>
-          </button>`;
-        }).join('')
-      : '<div class="muted">新增票券後會在這裡產生統計。</div>';
-  }
+  $('#typeBars').innerHTML=Object.keys(counts).length?Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([t,n])=>{
+    const list=rd.filter(x=>x.type===t);
+    const spend=list.reduce((sum,x)=>sum+ticketSpend(x),0);
+    const pct=totalPrice?Math.round(spend/totalPrice*100):0;
+    return `<button type="button" class="type-stat-btn ${selectedReviewType===t?'active':''}" onclick="toggleReviewType('${jsq(t)}')"><div class="barrow"><div class="barlabel"><span>${icons[t]||'🎟️'} ${esc(t)}</span><span class="type-count-pill">${n} 次</span></div><div class="bar"><i style="width:${n/max*100}%"></i></div><div class="spend-meta"><span class="spend-chip">總花費 ${money(spend)}</span><span class="spend-chip">${pct}%</span><span class="spend-chip">平均 ${money(n?spend/n:0)}</span></div></div></button>`;
+  }).join(''):'<div class="muted">新增票券後會在這裡產生統計。</div>';
   renderTypeTicketPanel();
 
-  // Monthly chart: respect selected review year, but keep the original visual.
-  const byMonth=Array(12).fill(0);
-  rd.forEach(x=>{if(x.date){const d=new Date(x.date);if(!Number.isNaN(d.getTime()))byMonth[d.getMonth()]++}});
-  const monthMax=Math.max(1,...byMonth);
-  const monthBars=$('#monthBars');
-  if(monthBars){
-    monthBars.innerHTML=byMonth.map((n,i)=>`<div class="monthbar"><i style="height:${Math.max(4,n/monthMax*72)}px"></i><span>${i+1}</span></div>`).join('');
-  }
+  // Annual/selected-period summary.
+  let scope=selectedReviewYear==='all'?'全部年份':selectedReviewYear+' 年';
+  let typeCount={},placeCount={};
+  rd.forEach(x=>{
+    typeCount[x.type]=(typeCount[x.type]||0)+1;
+    const place=(x.type==='交通'||x.type==='機票')?(x.destination||x.origin||''):(x.place||'');
+    if(place)placeCount[place]=(placeCount[place]||0)+1;
+  });
+  const topType=Object.entries(typeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+  const topPlace=Object.entries(placeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+  $('#yearLabel').textContent=scope;
+  $('#yearReview').innerHTML=`<div class="yearhero"><span>${scope} 我的票券回顧</span><b>${rd.length} 次出發</b><div style="margin-top:10px;line-height:1.8;font-size:13px">最常活動：${esc(topType)}　・　最常去：${esc(topPlace)}<br>票券總金額：${money(totalPrice)}${rd.length?`　・　平均：${money(totalPrice/rd.length)}`:''}</div></div>`;
 
-  // Memories list: keep original section alive and filter by selected year.
-  const used=rd.filter(x=>effectiveStatus(x)==='used'||effectiveStatus(x)==='expired')
-    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const memoryCount=$('#memoryCount');
-  if(memoryCount)memoryCount.textContent=used.length+' 張';
-  const memories=$('#memories');
-  if(memories){
-    memories.innerHTML=used.length?used.map(x=>`<div class="memory" onclick="showDetail('${x.id}')">
-      <div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div>
-      <div><b>${x.favorite?'❤️ ':''}${esc(x.name)}</b>
-      <div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>
-      ${ticketSpend(x)?`<div class="spend-meta"><span class="spend-chip">${money(ticketSpend(x))}</span></div>`:''}
-      </div></div>`).join(''):'<div class="empty">還沒有回憶票券。</div>';
-  }
+  // Venue atlas preserved, now follows selected year.
+  const venueMap={};
+  rd.forEach(x=>{
+    const place=(x.type==='交通'||x.type==='機票')?(x.destination||''):(x.place||'');
+    if(!place)return;
+    const v=venueMap[place]||(venueMap[place]={count:0,used:0,last:''});
+    v.count++; if(effectiveStatus(x)==='used'||effectiveStatus(x)==='expired')v.used++;
+    if((x.date||'')>v.last)v.last=x.date||'';
+  });
+  const venues=Object.entries(venueMap).sort((a,b)=>b[1].count-a[1].count);
+  $('#venueCount').textContent=venues.length+' 個地點';
+  $('#venueGallery').innerHTML=venues.length?venues.slice(0,12).map(([name,v])=>`<div class="venuecard" onclick="toggleReviewPlace('${jsq(name)}')"><b>📍 ${esc(name)}</b><div class="muted" style="margin-top:6px">${v.count} 張票・${v.used} 次完成</div></div>`).join(''):'<div class="empty">新增有地點的票券後，這裡會變成你的場館圖鑑。</div>';
+
+  // Recent footprints preserved.
+  const recent=rd.filter(x=>{
+    const place=(x.type==='交通'||x.type==='機票')?(x.destination||''):(x.place||'');
+    return (effectiveStatus(x)==='used'||effectiveStatus(x)==='expired')&&place;
+  }).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);
+  $('#recentPlaces').innerHTML=recent.length?recent.map(x=>`<div class="agenda-item" onclick="showDetail('${x.id}')"><div style="font-size:26px">📍</div><div><b>${esc(routeLabel(x))}</b><div class="muted">${esc(x.name)} ・ ${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}</div></div></div>`).join(''):'<div class="empty">使用過的票券會逐漸形成你的活動足跡。</div>';
 }
 function renderAll(){renderReminderBanner();renderHero();renderFilterBar();renderTickets();renderCalendar();renderTrips();renderMemories();renderStats()}
 function openEdit(id=''){let x=data.find(v=>v.id===id);$('#formTitle').textContent=x?'編輯票券':'新增票券';$('#editId').value=x?.id||'';$('#type').value=x?.type||'棒球';syncPlaceFields();$('#status').value=x?.status||'auto';$('#name').value=x?.name||'';$('#date').value=x?.date||'';$('#endDate').value=x?.endDate||'';$('#place').value=x?.place||'';$('#origin').value=x?.origin||'';$('#destination').value=x?.destination||'';syncPlaceFields();$('#seat').value=x?.seat||'';$('#price').value=x?.price||'';$('#code').value=x?.code||'';$('#tripName').value=x?.tripName||'';$('#companions').value=x?.companions||'';$('#tags').value=x?.tags||'';$('#reminder').value=x?.reminder||'none';$('#favorite').checked=!!x?.favorite;$('#note').value=x?.note||'';coverData=x?.cover||'';codeImageData=x?.codeImage||'';setPreview('#coverPreview',mediaSrc(coverData));setPreview('#codePreview',mediaSrc(codeImageData));syncMediaWraps();setEditTab('basic');$('#editDlg').showModal()}
