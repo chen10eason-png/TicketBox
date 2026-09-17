@@ -250,7 +250,10 @@
 <select id="reviewYear" style="width:auto;min-width:120px;margin:0;padding:8px 28px 8px 10px"><option value="all">全部年份</option></select>
 </div>
 <div class="statsgrid" id="statsCards"></div>
-    <div class="sectionhead"><h2>類型統計</h2><span class="muted">點選類型查看票券</span></div>
+    <div class="sectionhead"><div class="sectionhead"><h2>最常去的地方</h2><span class="muted">點擊查看票券</span></div>
+<div class="statcard" id="placeRank"></div>
+<div id="placeTicketPanel" class="type-ticket-panel"></div>
+<h2>類型統計</h2><span class="muted">點選類型查看票券</span></div>
     <div class="statcard" id="typeBars"></div>
     <div id="typeTicketPanel" class="type-ticket-panel"></div>
     <div class="sectionhead"><h2>年度回顧</h2><span class="muted" id="yearLabel"></span></div><div id="yearReview"></div>
@@ -349,7 +352,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.4b';
+const APP_VERSION='1.9.5';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -430,6 +433,7 @@ async function migrateInlineMedia(){
 }
 let selectedReviewType='';
 let selectedReviewYear='all';
+let selectedReviewPlace='';
 let data=loadData(), settings=JSON.parse(localStorage.getItem(SETKEY)||'{"privacy":true}'), filterType='', quickMode='', calCursor=new Date(), coverData='', codeImageData=''; ensureUpgradeSnapshot(); data=data.map(migrateTicket); localStorage.setItem(KEY,JSON.stringify(data));
 function loadData(){try{let v=JSON.parse(localStorage.getItem(KEY)||'null');if(Array.isArray(v))return v;let old=JSON.parse(localStorage.getItem(OLD)||'[]');return old.map(x=>({...x,endDate:'',status:'auto',code:'',tags:'',favorite:false,cover:'',codeImage:'',createdAt:new Date().toISOString()}))}catch(e){return[]}}
 function ensureUpgradeSnapshot(){try{if(!localStorage.getItem(SNAPKEY)){let raw=localStorage.getItem(KEY)||localStorage.getItem(OLD);if(raw)localStorage.setItem(SNAPKEY,raw)}localStorage.setItem(METAKEY,JSON.stringify({schema:15,appVersion:APP_VERSION,lastOpened:new Date().toISOString()}))}catch(e){}}
@@ -515,13 +519,39 @@ function fillReviewYears(){
   if(selectedReviewYear!=='all'&&!years.includes(selectedReviewYear))selectedReviewYear='all';
   el.value=selectedReviewYear;
 }
+
+function renderPlaceRank(){
+  const box=$('#placeRank'),panel=$('#placeTicketPanel'); if(!box||!panel)return;
+  const list=reviewFilteredData();
+  const counts={};
+  list.forEach(x=>{
+    const place=(x.location||x.venue||x.destination||'').trim();
+    if(place)counts[place]=(counts[place]||0)+1;
+  });
+  const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8);
+  box.innerHTML=rows.length?rows.map(([place,n],i)=>`<button type="button" class="type-stat-btn ${selectedReviewPlace===place?'active':''}" onclick="toggleReviewPlace(${JSON.stringify(place).replace(/</g,'\\u003c')})"><div class="barlabel"><span>${i<3?['🥇','🥈','🥉'][i]:'📍'} ${esc(place)}</span><span class="type-count-pill">${n} 次</span></div></button>`).join(''):'<div class="muted">票券加入地點後，這裡會顯示最常去的地方。</div>';
+  renderPlaceTicketPanel();
+}
+function toggleReviewPlace(place){
+  selectedReviewPlace=selectedReviewPlace===place?'':place;
+  renderPlaceRank();
+}
+function renderPlaceTicketPanel(){
+  const panel=$('#placeTicketPanel'); if(!panel)return;
+  if(!selectedReviewPlace){panel.innerHTML='';return;}
+  const list=reviewFilteredData().filter(x=>((x.location||x.venue||x.destination||'').trim()===selectedReviewPlace));
+  panel.innerHTML=`<div class="sectionhead"><h3>${esc(selectedReviewPlace)}</h3><span class="muted">${list.length} 張票券</span></div>`+
+    (list.length?list.map(ticketCard).join(''):'<div class="muted">沒有票券</div>');
+}
+
 function renderStats(){
   fillReviewYears();
-  if(selectedReviewYear==='all'){ renderStatsBase(); return; }
+  if(selectedReviewYear==='all'){ renderStatsBase(); renderPlaceRank(); return; }
   const fullData=data;
   try{
     data=reviewFilteredData();
     renderStatsBase();
+    renderPlaceRank();
   } finally {
     data=fullData;
   }
@@ -711,7 +741,7 @@ $('#upcomingTrack')?.addEventListener('scroll',updateUpcomingDots,{passive:true}
     await migrateInlineMedia();
     await hydrateAllMedia();
   }catch(e){console.warn('TicketBox media init',e)}
-  $('#reviewYear')?.addEventListener('change',e=>{selectedReviewYear=e.target.value;selectedReviewType='';renderStats();});
+  $('#reviewYear')?.addEventListener('change',e=>{selectedReviewYear=e.target.value;selectedReviewType='';selectedReviewPlace='';renderStats();});
 renderAll();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 })();
