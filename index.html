@@ -211,6 +211,9 @@
 .type-ticket-panel .memory{cursor:pointer}
 .type-ticket-empty{padding:16px;text-align:center;color:#98a2b3;font-size:13px}
 
+
+.review-year-filter{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;padding:10px 12px;background:#fff;border-radius:14px;box-shadow:var(--shadow)}
+.review-year-filter span{font-size:12px;font-weight:800}.review-year-filter select{width:auto;min-width:110px;margin:0;padding:8px 28px 8px 10px}
 </style>
 </head>
 <body>
@@ -245,6 +248,7 @@
   </section>
 
   <section id="viewStats" class="view">
+    <div class="review-year-filter"><span>回顧年份</span><select id="reviewYear"></select></div>
     <div class="statsgrid" id="statsCards"></div>
     <div class="sectionhead"><h2>類型統計</h2><span class="muted">點選類型查看票券</span></div>
     <div class="statcard" id="typeBars"></div>
@@ -345,7 +349,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.3';
+const APP_VERSION='1.9.4';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -484,7 +488,7 @@ function renderTypeTicketPanel(){
   const panel=$('#typeTicketPanel');
   if(!panel)return;
   if(!selectedReviewType){panel.innerHTML='';return}
-  const list=data.filter(x=>x.type===selectedReviewType).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const list=reviewData().filter(x=>x.type===selectedReviewType).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!list.length){panel.innerHTML='';return}
   panel.innerHTML=`<div class="type-ticket-head"><b>${icons[selectedReviewType]||'🎟️'} ${esc(selectedReviewType)}・${list.length} 次</b><button class="smallbtn" type="button" onclick="toggleReviewType('${esc(selectedReviewType)}')">收起</button></div><div class="type-ticket-list">${list.map(x=>`<div class="memory" onclick="showDetail('${x.id}')"><div class="thumb" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div><b>${x.favorite?'❤️ ':''}${esc(x.name)}</b><div class="muted" style="margin-top:5px">${x.date?new Date(x.date).toLocaleDateString('zh-TW'):''}${routeLabel(x)?' ・ '+esc(routeLabel(x)):''}</div>${x.seat?`<div class="muted" style="margin-top:4px">🎫 ${esc(x.seat)}</div>`:''}${x.note?`<div class="muted" style="margin-top:4px">${esc(x.note).slice(0,45)}</div>`:''}</div></div>`).join('')}</div>`;
 }
@@ -493,7 +497,22 @@ function toggleReviewType(type){
   renderStats();
 }
 window.toggleReviewType=toggleReviewType;
-function renderStats(){let total=data.length, used=data.filter(x=>effectiveStatus(x)==='used').length, totalPrice=data.reduce((s,x)=>s+(+x.price||0),0), fav=data.filter(x=>x.favorite).length;$('#statsCards').innerHTML=`<div class="statcard"><span class="muted">全部票券</span><b>${total}</b></div><div class="statcard"><span class="muted">已完成行程</span><b>${used}</b></div><div class="statcard"><span class="muted">票券總金額</span><b>NT$ ${totalPrice.toLocaleString()}</b></div><div class="statcard"><span class="muted">最愛收藏</span><b>${fav}</b></div>`;let counts={};data.forEach(x=>counts[x.type]=(counts[x.type]||0)+1);let max=Math.max(1,...Object.values(counts));$('#typeBars').innerHTML=Object.keys(counts).length?Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([t,n])=>{const typeSpend=data.filter(x=>x.type===t).reduce((sum,x)=>sum+(Number(x.price)||0),0);const allSpend=data.reduce((sum,x)=>sum+(Number(x.price)||0),0);const spendPct=allSpend?Math.round(typeSpend/allSpend*100):0;return `<button type="button" class="type-stat-btn ${selectedReviewType===t?'active':''}" onclick="toggleReviewType('${esc(t)}')"><div class="barrow"><div class="barlabel"><span>${icons[t]||'🎟️'} ${esc(t)}</span><span class="type-count-pill">${n} 次</span></div><div class="bar"><i style="width:${n/max*100}%"></i></div><div class="muted" style="margin-top:6px;text-align:left">總花費 $${typeSpend.toLocaleString()} ・ 占總花費 ${spendPct}% ・ 平均 $${Math.round(n?typeSpend/n:0).toLocaleString()} / 次</div></div></button>`}).join(''):'<div class="muted">新增票券後會在這裡產生統計。</div>';renderTypeTicketPanel();let y=new Date().getFullYear(),yd=data.filter(x=>x.date&&new Date(x.date).getFullYear()===y),ySpend=yd.reduce((s,x)=>s+(+x.price||0),0),typeCount={},placeCount={};yd.forEach(x=>{typeCount[x.type]=(typeCount[x.type]||0)+1;if(x.place)placeCount[x.place]=(placeCount[x.place]||0)+1});let topType=Object.entries(typeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—',topPlace=Object.entries(placeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';$('#yearLabel').textContent=y+' 年';$('#yearReview').innerHTML=`<div class="yearhero"><span>${y} 我的票券回顧</span><b>${yd.length} 次出發</b><div style="margin-top:10px;line-height:1.8;font-size:13px">最常活動：${esc(topType)}　・　最常去：${esc(topPlace)}<br>年度票券金額：NT$ ${ySpend.toLocaleString()}</div></div>`;let venueMap={};data.filter(x=>x.place).forEach(x=>{let v=venueMap[x.place]||(venueMap[x.place]={count:0,used:0,last:''});v.count++;if(effectiveStatus(x)==='used')v.used++;if((x.date||'')>v.last)v.last=x.date||''});let venues=Object.entries(venueMap).sort((a,b)=>b[1].count-a[1].count);$('#venueCount').textContent=venues.length+' 個場館';$('#venueGallery').innerHTML=venues.length?venues.slice(0,12).map(([name,v])=>`<div class="venuecard"><b>📍 ${esc(name)}</b><div class="muted" style="margin-top:6px">${v.count} 張票・${v.used} 次完成</div></div>`).join(''):'<div class="empty">新增有地點的票券後，這裡會變成你的場館圖鑑。</div>';let places=data.filter(x=>effectiveStatus(x)==='used'&&x.place).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);$('#recentPlaces').innerHTML=places.length?places.map(x=>`<div class="agenda-item"><div style="font-size:26px">📍</div><div><b>${esc(routeLabel(x))}</b><div class="muted">${esc(x.name)} ・ ${new Date(x.date).toLocaleDateString('zh-TW')}</div></div></div>`).join(''):'<div class="empty">使用過的票券會逐漸形成你的活動足跡。</div>'}
+function reviewData(){
+  if(selectedReviewYear==='all')return data;
+  return data.filter(x=>{
+    if(!x.date)return false;
+    const d=new Date(x.date);
+    return !Number.isNaN(d.getTime())&&String(d.getFullYear())===selectedReviewYear;
+  });
+}
+function renderReviewYear(){
+  const el=$('#reviewYear');if(!el)return;
+  const years=[...new Set(data.filter(x=>x.date).map(x=>new Date(x.date)).filter(d=>!Number.isNaN(d.getTime())).map(d=>String(d.getFullYear())))].sort((a,b)=>Number(b)-Number(a));
+  if(selectedReviewYear!=='all'&&!years.includes(selectedReviewYear))selectedReviewYear='all';
+  el.innerHTML='<option value="all">全部年份</option>'+years.map(y=>`<option value="${y}">${y} 年</option>`).join('');
+  el.value=selectedReviewYear;
+}
+function renderStats(){let total=data.length, used=rd.filter(x=>effectiveStatus(x)==='used').length, totalPrice=data.reduce((s,x)=>s+(+x.price||0),0), fav=rd.filter(x=>x.favorite).length;$('#statsCards').innerHTML=`<div class="statcard"><span class="muted">全部票券</span><b>${total}</b></div><div class="statcard"><span class="muted">已完成行程</span><b>${used}</b></div><div class="statcard"><span class="muted">票券總金額</span><b>NT$ ${totalPrice.toLocaleString()}</b></div><div class="statcard"><span class="muted">最愛收藏</span><b>${fav}</b></div>`;let counts={};rd.forEach(x=>counts[x.type]=(counts[x.type]||0)+1);let max=Math.max(1,...Object.values(counts));$('#typeBars').innerHTML=Object.keys(counts).length?Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([t,n])=>{const typeSpend=rd.filter(x=>x.type===t).reduce((sum,x)=>sum+(Number(x.price)||0),0);const allSpend=rd.reduce((sum,x)=>sum+(Number(x.price)||0),0);const spendPct=allSpend?Math.round(typeSpend/allSpend*100):0;return `<button type="button" class="type-stat-btn ${selectedReviewType===t?'active':''}" onclick="toggleReviewType('${esc(t)}')"><div class="barrow"><div class="barlabel"><span>${icons[t]||'🎟️'} ${esc(t)}</span><span class="type-count-pill">${n} 次</span></div><div class="bar"><i style="width:${n/max*100}%"></i></div><div class="muted" style="margin-top:6px;text-align:left">總花費 $${typeSpend.toLocaleString()} ・ 占總花費 ${spendPct}% ・ 平均 $${Math.round(n?typeSpend/n:0).toLocaleString()} / 次</div></div></button>`}).join(''):'<div class="muted">新增票券後會在這裡產生統計。</div>';renderTypeTicketPanel();let y=new Date().getFullYear(),yd=rd.filter(x=>x.date&&new Date(x.date).getFullYear()===y),ySpend=yd.reduce((s,x)=>s+(+x.price||0),0),typeCount={},placeCount={};yd.forEach(x=>{typeCount[x.type]=(typeCount[x.type]||0)+1;if(x.place)placeCount[x.place]=(placeCount[x.place]||0)+1});let topType=Object.entries(typeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—',topPlace=Object.entries(placeCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';$('#yearLabel').textContent=y+' 年';$('#yearReview').innerHTML=`<div class="yearhero"><span>${y} 我的票券回顧</span><b>${yd.length} 次出發</b><div style="margin-top:10px;line-height:1.8;font-size:13px">最常活動：${esc(topType)}　・　最常去：${esc(topPlace)}<br>年度票券金額：NT$ ${ySpend.toLocaleString()}</div></div>`;let venueMap={};rd.filter(x=>x.place).forEach(x=>{let v=venueMap[x.place]||(venueMap[x.place]={count:0,used:0,last:''});v.count++;if(effectiveStatus(x)==='used')v.used++;if((x.date||'')>v.last)v.last=x.date||''});let venues=Object.entries(venueMap).sort((a,b)=>b[1].count-a[1].count);$('#venueCount').textContent=venues.length+' 個場館';$('#venueGallery').innerHTML=venues.length?venues.slice(0,12).map(([name,v])=>`<div class="venuecard"><b>📍 ${esc(name)}</b><div class="muted" style="margin-top:6px">${v.count} 張票・${v.used} 次完成</div></div>`).join(''):'<div class="empty">新增有地點的票券後，這裡會變成你的場館圖鑑。</div>';let places=rd.filter(x=>effectiveStatus(x)==='used'&&x.place).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,5);$('#recentPlaces').innerHTML=places.length?places.map(x=>`<div class="agenda-item"><div style="font-size:26px">📍</div><div><b>${esc(routeLabel(x))}</b><div class="muted">${esc(x.name)} ・ ${new Date(x.date).toLocaleDateString('zh-TW')}</div></div></div>`).join(''):'<div class="empty">使用過的票券會逐漸形成你的活動足跡。</div>'}
 function renderAll(){renderReminderBanner();renderHero();renderFilterBar();renderTickets();renderCalendar();renderTrips();renderMemories();renderStats()}
 function openEdit(id=''){let x=data.find(v=>v.id===id);$('#formTitle').textContent=x?'編輯票券':'新增票券';$('#editId').value=x?.id||'';$('#type').value=x?.type||'棒球';syncPlaceFields();$('#status').value=x?.status||'auto';$('#name').value=x?.name||'';$('#date').value=x?.date||'';$('#endDate').value=x?.endDate||'';$('#place').value=x?.place||'';$('#origin').value=x?.origin||'';$('#destination').value=x?.destination||'';syncPlaceFields();$('#seat').value=x?.seat||'';$('#price').value=x?.price||'';$('#code').value=x?.code||'';$('#tripName').value=x?.tripName||'';$('#companions').value=x?.companions||'';$('#tags').value=x?.tags||'';$('#reminder').value=x?.reminder||'none';$('#favorite').checked=!!x?.favorite;$('#note').value=x?.note||'';coverData=x?.cover||'';codeImageData=x?.codeImage||'';setPreview('#coverPreview',mediaSrc(coverData));setPreview('#codePreview',mediaSrc(codeImageData));syncMediaWraps();setEditTab('basic');$('#editDlg').showModal()}
 function setPreview(sel,val){let el=$(sel);if(val){el.style.display='block';el.style.backgroundImage=`url('${val}')`}else{el.style.display='none';el.style.backgroundImage='none'}}
@@ -678,7 +697,8 @@ $('#upcomingTrack')?.addEventListener('scroll',updateUpcomingDots,{passive:true}
     await migrateInlineMedia();
     await hydrateAllMedia();
   }catch(e){console.warn('TicketBox media init',e)}
-  renderAll();
+  $('#reviewYear')?.addEventListener('change',e=>{selectedReviewYear=e.target.value;selectedReviewType='';renderStats()});
+renderAll();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 })();
 </script>
