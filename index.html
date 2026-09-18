@@ -248,6 +248,16 @@
 .share-card-row{font-size:14px;line-height:1.55;color:#334155;margin-top:7px}
 .share-card-type{display:inline-block;margin-top:16px;padding:6px 10px;border-radius:999px;background:#f1f5f9;font-size:12px;font-weight:800;color:#334155}
 
+
+/* v1.9.10：只精修分享卡片 */
+#shareCardPreview{padding:4px 0 10px}
+.share-card{border-radius:28px!important;box-shadow:0 18px 48px rgba(15,23,42,.14)!important}
+.share-card-cover{height:230px!important}
+.share-card-body{padding:22px 22px 24px!important}
+.share-card-brand{font-size:11px!important;letter-spacing:.12em!important}
+.share-card-title{font-size:25px!important;letter-spacing:-.02em;margin:10px 0 17px!important}
+.share-card-info{display:grid;gap:9px;padding:14px 0;border-top:1px dashed rgba(100,116,139,.24);border-bottom:1px dashed rgba(100,116,139,.24)}
+.share-card-info .share-card-row{margin:0!important}
 </style>
 </head>
 <body>
@@ -389,7 +399,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.9';
+const APP_VERSION='1.9.10';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -778,62 +788,35 @@ function closeShareCard(){const d=$('#shareCardDlg');if(d&&d.open)d.close()}
 window.closeShareCard=closeShareCard;
 
 async function buildShareCardBlob(x){
-  const W=1080,H=1350,cv=document.createElement('canvas'),ctx=cv.getContext('2d');
-  cv.width=W;cv.height=H;
-  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+  const W=1080,H=1350,cv=document.createElement('canvas'),ctx=cv.getContext('2d');cv.width=W;cv.height=H;
+  const rr=(x,y,w,h,r)=>{ctx.beginPath();ctx.roundRect(x,y,w,h,r)};
+  ctx.fillStyle='#eef2f7';ctx.fillRect(0,0,W,H);
+  rr(50,40,980,1270,48);ctx.fillStyle='#fff';ctx.fill();
+  ctx.save();rr(50,40,980,1270,48);ctx.clip();
 
-  const cover=await mediaGet(x.cover||'');
-  let bodyY=160;
-  if(cover){
-    try{
-      const img=new Image();
-      await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=cover});
-      const boxH=560,scale=Math.max(W/img.width,boxH/img.height);
-      const sw=W/scale,sh=boxH/scale,sx=(img.width-sw)/2,sy=(img.height-sh)/2;
-      ctx.drawImage(img,sx,sy,sw,sh,0,0,W,boxH);
-      bodyY=650;
-    }catch(e){}
-  }else{
-    ctx.fillStyle='#f1f5f9';ctx.fillRect(0,0,W,500);
-    ctx.fillStyle='#334155';ctx.font='120px sans-serif';ctx.textAlign='center';
-    ctx.fillText(icons[x.type]||'🎟️',W/2,300);ctx.textAlign='left';bodyY=590;
+  const cover=await mediaGet(x.cover||''),coverH=570;
+  if(cover){try{const img=new Image();await new Promise((ok,no)=>{img.onload=ok;img.onerror=no;img.src=cover});
+    const sc=Math.max(980/img.width,coverH/img.height),sw=980/sc,sh=coverH/sc;
+    ctx.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,50,40,980,coverH);
+  }catch(e){ctx.fillStyle='#e8edf4';ctx.fillRect(50,40,980,coverH)}}else{
+    ctx.fillStyle='#e8edf4';ctx.fillRect(50,40,980,coverH);ctx.textAlign='center';ctx.font='150px sans-serif';ctx.fillStyle='#334155';ctx.fillText(icons[x.type]||'🎟️',540,360);ctx.textAlign='left';
   }
+  const g=ctx.createLinearGradient(0,400,0,610);g.addColorStop(0,'rgba(15,23,42,0)');g.addColorStop(1,'rgba(15,23,42,.48)');ctx.fillStyle=g;ctx.fillRect(50,390,980,220);
+  ctx.fillStyle='#fff';ctx.font='800 27px sans-serif';ctx.fillText('TICKETBOX PASS',105,555);
 
-  const pad=80;
-  ctx.fillStyle='#64748b';ctx.font='700 30px sans-serif';ctx.fillText('TICKETBOX',pad,bodyY);
-  bodyY+=72;
+  const pad=105,maxW=870;let y=690;
+  function wrap(text,width,font,max=3){ctx.font=font;let ls=[],line='';for(const ch of [...String(text||'')]){if(ctx.measureText(line+ch).width>width&&line){ls.push(line);line=ch;if(ls.length>=max)break}else line+=ch}if(ls.length<max&&line)ls.push(line);return ls.slice(0,max)}
+  ctx.fillStyle='#0f172a';ctx.font='900 58px sans-serif';wrap(x.name,maxW,'900 58px sans-serif',3).forEach(v=>{ctx.fillText(v,pad,y);y+=70});y+=20;
 
-  function wrap(text,maxWidth,font,lineH,maxLines=3){
-    ctx.font=font;const chars=[...String(text||'')];let lines=[],line='';
-    for(const ch of chars){
-      const test=line+ch;
-      if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=ch;if(lines.length>=maxLines)break}
-      else line=test;
-    }
-    if(lines.length<maxLines&&line)lines.push(line);
-    return lines.slice(0,maxLines).map((v,i)=>i===maxLines-1&&chars.join('').length>lines.join('').length?v+'…':v);
-  }
-  ctx.fillStyle='#0f172a';let titleLines=wrap(x.name,W-pad*2,'900 58px sans-serif',72,3);
-  ctx.font='900 58px sans-serif';
-  titleLines.forEach(line=>{ctx.fillText(line,pad,bodyY);bodyY+=72});
-  bodyY+=24;
+  ctx.strokeStyle='#d9e0e8';ctx.lineWidth=3;ctx.setLineDash([12,12]);ctx.beginPath();ctx.moveTo(105,y);ctx.lineTo(975,y);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#eef2f7';ctx.beginPath();ctx.arc(50,y,25,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(1030,y,25,0,Math.PI*2);ctx.fill();y+=58;
 
-  ctx.fillStyle='#334155';ctx.font='500 34px sans-serif';
-  const rows=[];
-  if(x.date)rows.push('📅 '+fmtDate(x.date));
-  const route=routeLabel(x); if(route)rows.push('📍 '+route);
-  if(x.seat)rows.push('🎫 '+x.seat);
-  rows.forEach(row=>{
-    wrap(row,W-pad*2,'500 34px sans-serif',48,2).forEach(line=>{ctx.fillText(line,pad,bodyY);bodyY+=48});
-    bodyY+=12;
-  });
+  const route=routeLabel(x),rows=[];if(x.date)rows.push(['DATE','📅 '+fmtDate(x.date)]);if(route)rows.push([x.type==='交通'||x.type==='機票'?'ROUTE':'PLACE','📍 '+route]);if(x.seat)rows.push(['SEAT','🎫 '+x.seat]);
+  for(const [lab,val] of rows){ctx.fillStyle='#94a3b8';ctx.font='800 20px sans-serif';ctx.fillText(lab,pad,y);y+=34;ctx.fillStyle='#334155';ctx.font='600 31px sans-serif';wrap(val,maxW,'600 31px sans-serif',2).forEach(v=>{ctx.fillText(v,pad,y);y+=42});y+=22}
 
-  ctx.fillStyle='#f1f5f9';ctx.beginPath();ctx.roundRect(pad,bodyY+18,Math.min(320,120+String(x.type||'票券').length*40),64,32);ctx.fill();
-  ctx.fillStyle='#334155';ctx.font='700 28px sans-serif';ctx.fillText((icons[x.type]||'🎟️')+' '+(x.type||'票券'),pad+24,bodyY+60);
-
-  ctx.fillStyle='#94a3b8';ctx.font='500 24px sans-serif';ctx.fillText('分享卡片已隱藏票碼與票號',pad,H-70);
-
-  return await new Promise(resolve=>cv.toBlob(resolve,'image/png',.95));
+  const typ=(icons[x.type]||'🎟️')+' '+(x.type||'票券');ctx.font='700 25px sans-serif';const tw=ctx.measureText(typ).width+48;rr(pad,1190,tw,58,29);ctx.fillStyle='#f1f5f9';ctx.fill();ctx.fillStyle='#334155';ctx.fillText(typ,pad+24,1228);
+  ctx.textAlign='right';ctx.fillStyle='#94a3b8';ctx.font='500 20px sans-serif';ctx.fillText('票碼與票號已隱藏',975,1227);ctx.textAlign='left';ctx.restore();
+  return await new Promise(ok=>cv.toBlob(ok,'image/png',.95));
 }
 
 window.shareTicket=async id=>{
@@ -841,7 +824,7 @@ window.shareTicket=async id=>{
   currentShareTicketId=id;
   const cover=await mediaGet(x.cover||'');
   const route=routeLabel(x);
-  $('#shareCardPreview').innerHTML=`<div class="share-card"><div class="share-card-cover" ${cover?`style="background-image:url('${cover}')"`:''}>${cover?'':icons[x.type]||'🎟️'}</div><div class="share-card-body"><div class="share-card-brand">TICKETBOX</div><div class="share-card-title">${esc(x.name)}</div>${x.date?`<div class="share-card-row">📅 ${fmtDate(x.date)}</div>`:''}${route?`<div class="share-card-row">📍 ${esc(route)}</div>`:''}${x.seat?`<div class="share-card-row">🎫 ${esc(x.seat)}</div>`:''}<span class="share-card-type">${icons[x.type]||'🎟️'} ${esc(x.type||'票券')}</span></div></div>`;
+  $('#shareCardPreview').innerHTML=`<div class="share-card"><div class="share-card-cover" ${cover?`style="background-image:url('${cover}')"`:''}>${cover?'':icons[x.type]||'🎟️'}</div><div class="share-card-body"><div class="share-card-brand">🎟️ TICKETBOX PASS</div><div class="share-card-title">${esc(x.name)}</div><div class="share-card-info">${x.date?`<div class="share-card-row">📅 ${fmtDate(x.date)}</div>`:''}${route?`<div class="share-card-row">📍 ${esc(route)}</div>`:''}${x.seat?`<div class="share-card-row">🎫 ${esc(x.seat)}</div>`:''}</div><span class="share-card-type">${icons[x.type]||'🎟️'} ${esc(x.type||'票券')}</span></div></div>`;
   $('#shareCardDlg').showModal();
 };
 
