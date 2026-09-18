@@ -253,13 +253,10 @@
     <div class="sectionhead"><h2>類型統計</h2><span class="muted">點選類型查看票券</span></div>
     <div class="statcard" id="typeBars"></div>
     <div id="typeTicketPanel" class="type-ticket-panel"></div>
-<div class="sectionhead"><h2>最常去的地方</h2><span class="muted">點一下查看票券</span></div>
-<div id="placeRank" class="typebars"></div>
-<div id="placeTicketPanel" class="type-ticket-panel"></div>
-
     <div class="sectionhead"><h2>年度回顧</h2><span class="muted" id="yearLabel"></span></div><div id="yearReview"></div>
     <div class="sectionhead"><h2>場館圖鑑</h2><span class="muted" id="venueCount"></span></div><div id="venueGallery" class="venuegrid"></div>
     <div class="sectionhead"><h2>最近足跡</h2><span class="muted">已使用票券</span></div><div id="recentPlaces" class="tickets"></div>
+    <div class="sectionhead"><h2>月度回顧</h2><span class="muted">每月票券與花費</span></div><div id="monthlyReview"></div>
   </section>
 </main>
 
@@ -353,7 +350,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.5d';
+const APP_VERSION='1.9.6';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -434,7 +431,6 @@ async function migrateInlineMedia(){
 }
 let selectedReviewType='';
 let selectedReviewYear='all';
-let selectedReviewPlace='';
 let data=loadData(), settings=JSON.parse(localStorage.getItem(SETKEY)||'{"privacy":true}'), filterType='', quickMode='', calCursor=new Date(), coverData='', codeImageData=''; ensureUpgradeSnapshot(); data=data.map(migrateTicket); localStorage.setItem(KEY,JSON.stringify(data));
 function loadData(){try{let v=JSON.parse(localStorage.getItem(KEY)||'null');if(Array.isArray(v))return v;let old=JSON.parse(localStorage.getItem(OLD)||'[]');return old.map(x=>({...x,endDate:'',status:'auto',code:'',tags:'',favorite:false,cover:'',codeImage:'',createdAt:new Date().toISOString()}))}catch(e){return[]}}
 function ensureUpgradeSnapshot(){try{if(!localStorage.getItem(SNAPKEY)){let raw=localStorage.getItem(KEY)||localStorage.getItem(OLD);if(raw)localStorage.setItem(SNAPKEY,raw)}localStorage.setItem(METAKEY,JSON.stringify({schema:15,appVersion:APP_VERSION,lastOpened:new Date().toISOString()}))}catch(e){}}
@@ -520,107 +516,29 @@ function fillReviewYears(){
   if(selectedReviewYear!=='all'&&!years.includes(selectedReviewYear))selectedReviewYear='all';
   el.value=selectedReviewYear;
 }
-
-function normalizePlaceText(v){
-  return String(v||'').trim().toLowerCase()
-    .replace(/臺/g,'台')
-    .replace(/[　\s]+/g,'')
-    .replace(/[()（）\-–—,，.。]/g,'');
-}
-function parseMapPoint(v){
-  const text=String(v||'').trim();
-  if(!text)return null;
-  // Supports common navigation URLs/text containing coordinates.
-  const patterns=[
-    /[?&](?:ll|center|coordinate)=(-?\d{1,3}\.\d+)[,%2C\s]+(-?\d{1,3}\.\d+)/i,
-    /[?&](?:q|query)=(-?\d{1,3}\.\d+)[,%2C\s]+(-?\d{1,3}\.\d+)/i,
-    /@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/,
-    /(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/
-  ];
-  for(const re of patterns){
-    const m=text.match(re);
-    if(m){
-      const lat=Number(m[1]),lng=Number(m[2]);
-      if(Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180)return {lat,lng};
-    }
-  }
-  return null;
-}
-function placeKeyFromValue(v){
-  const raw=String(v||'').trim();
-  if(!raw)return '';
-  const point=parseMapPoint(raw);
-  // ~55m grid: navigation links to the same venue collapse together.
-  if(point)return `geo:${point.lat.toFixed(3)},${point.lng.toFixed(3)}`;
-  let text=raw;
-  try{
-    const u=new URL(raw);
-    text=u.searchParams.get('q')||u.searchParams.get('query')||u.searchParams.get('address')||u.searchParams.get('daddr')||raw;
-    text=decodeURIComponent(text);
-  }catch(e){}
-  return `txt:${normalizePlaceText(text)}`;
-}
-function ticketReviewPlaceEntries(x){
-  const vals=[];
-  if(x.type==='交通'||x.type==='機票'){
-    vals.push(x.origin,x.destination);
-  }else{
-    // Prefer navigation/address fields if this ticket version has them;
-    // fall back to the existing visible location.
-    vals.push(x.navigation,x.mapUrl,x.address,x.location);
-  }
-  const seen=new Set(),out=[];
-  vals.forEach(v=>{
-    const label=String(v||'').trim(); if(!label)return;
-    const key=placeKeyFromValue(label); if(!key||seen.has(key))return;
-    seen.add(key); out.push({key,label});
+function renderMonthlyReview(){
+  const box=$('#monthlyReview');if(!box)return;
+  const months={};
+  reviewFilteredData().forEach(x=>{
+    if(!x.date)return;
+    const d=new Date(x.date);if(Number.isNaN(d.getTime()))return;
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if(!months[key])months[key]={count:0,spend:0};
+    months[key].count++;
+    months[key].spend+=Number(x.price)||0;
   });
-  return out;
-}
-function placeDisplayLabel(entries){
-  const labels=entries.map(e=>e.label).filter(Boolean);
-  const readable=labels.find(v=>!/^https?:/i.test(v));
-  return readable||labels[0]||'地點';
-}
-function renderPlaceTicketPanel(){
-  const panel=$('#placeTicketPanel');if(!panel)return;
-  if(!selectedReviewPlace){panel.innerHTML='';return;}
-  const list=reviewFilteredData().filter(x=>ticketReviewPlaceEntries(x).some(e=>e.key===selectedReviewPlace));
-  const found=reviewFilteredData().flatMap(ticketReviewPlaceEntries).filter(e=>e.key===selectedReviewPlace);
-  const heading=placeDisplayLabel(found);
-  panel.innerHTML=`<div class="sectionhead"><h3>${esc(heading)}</h3><span class="muted">${list.length} 張</span></div>`+
-    (list.length?list.map(ticketCard).join(''):'<div class="muted">沒有票券</div>');
-}
-function toggleReviewPlace(encodedPlace){
-  const place=decodeURIComponent(encodedPlace);
-  selectedReviewPlace=selectedReviewPlace===place?'':place;
-  renderPlaceRank();
-}
-function renderPlaceRank(){
-  const box=$('#placeRank');if(!box)return;
-  const counts={};
-  const labels={};
-  reviewFilteredData().forEach(x=>ticketReviewPlaceEntries(x).forEach(e=>{
-    counts[e.key]=(counts[e.key]||0)+1;
-    (labels[e.key]||(labels[e.key]=[])).push(e);
-  }));
-  const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,8).map(([key,n])=>[key,n,placeDisplayLabel(labels[key]||[])]);
-  const max=Math.max(1,...rows.map(x=>x[1]));
-  box.innerHTML=rows.length?rows.map(([place,n,label])=>{
-    const encoded=encodeURIComponent(place);
-    return `<button type="button" class="type-stat-btn ${selectedReviewPlace===place?'active':''}" onclick="toggleReviewPlace('${encoded}')"><div class="barrow"><div class="barlabel"><span>📍 ${esc(label)}</span><span class="type-count-pill">${n} 次</span></div><div class="bar"><i style="width:${n/max*100}%"></i></div></div></button>`;
-  }).join(''):'<div class="muted">目前沒有可統計的地點。</div>';
-  renderPlaceTicketPanel();
+  const rows=Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0]));
+  box.innerHTML=rows.length?`<div class="statsgrid">${rows.map(([key,v])=>{const [y,m]=key.split('-');return `<div class="statcard"><span class="muted">${y} 年 ${Number(m)} 月</span><b>${v.count} 次</b><div class="muted" style="margin-top:6px">總花費 NT$ ${Math.round(v.spend).toLocaleString()}</div></div>`}).join('')}</div>`:'<div class="empty">目前沒有可統計的月份資料。</div>';
 }
 
 function renderStats(){
   fillReviewYears();
-  if(selectedReviewYear==='all'){ renderStatsBase(); renderPlaceRank(); return; }
+  if(selectedReviewYear==='all'){ renderStatsBase(); renderMonthlyReview(); return; }
   const fullData=data;
   try{
     data=reviewFilteredData();
     renderStatsBase();
-    renderPlaceRank();
+    renderMonthlyReview();
   } finally {
     data=fullData;
   }
@@ -810,7 +728,7 @@ $('#upcomingTrack')?.addEventListener('scroll',updateUpcomingDots,{passive:true}
     await migrateInlineMedia();
     await hydrateAllMedia();
   }catch(e){console.warn('TicketBox media init',e)}
-  $('#reviewYear')?.addEventListener('change',e=>{selectedReviewYear=e.target.value;selectedReviewType='';selectedReviewPlace='';renderStats();});
+  $('#reviewYear')?.addEventListener('change',e=>{selectedReviewYear=e.target.value;selectedReviewType='';renderStats();});
 renderAll();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 })();
