@@ -257,6 +257,7 @@
     <div class="sectionhead"><h2>場館圖鑑</h2><span class="muted" id="venueCount"></span></div><div id="venueGallery" class="venuegrid"></div>
     <div class="sectionhead"><h2>最近足跡</h2><span class="muted">已使用票券</span></div><div id="recentPlaces" class="tickets"></div>
     <div class="sectionhead"><h2>月度回顧</h2><span class="muted">每月票券與花費</span></div><div id="monthlyReview"></div>
+<div id="monthlyTicketPanel" class="type-ticket-panel"></div>
   </section>
 </main>
 
@@ -350,7 +351,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.6';
+const APP_VERSION='1.9.7';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -431,6 +432,7 @@ async function migrateInlineMedia(){
 }
 let selectedReviewType='';
 let selectedReviewYear='all';
+let selectedReviewMonth='';
 let data=loadData(), settings=JSON.parse(localStorage.getItem(SETKEY)||'{"privacy":true}'), filterType='', quickMode='', calCursor=new Date(), coverData='', codeImageData=''; ensureUpgradeSnapshot(); data=data.map(migrateTicket); localStorage.setItem(KEY,JSON.stringify(data));
 function loadData(){try{let v=JSON.parse(localStorage.getItem(KEY)||'null');if(Array.isArray(v))return v;let old=JSON.parse(localStorage.getItem(OLD)||'[]');return old.map(x=>({...x,endDate:'',status:'auto',code:'',tags:'',favorite:false,cover:'',codeImage:'',createdAt:new Date().toISOString()}))}catch(e){return[]}}
 function ensureUpgradeSnapshot(){try{if(!localStorage.getItem(SNAPKEY)){let raw=localStorage.getItem(KEY)||localStorage.getItem(OLD);if(raw)localStorage.setItem(SNAPKEY,raw)}localStorage.setItem(METAKEY,JSON.stringify({schema:15,appVersion:APP_VERSION,lastOpened:new Date().toISOString()}))}catch(e){}}
@@ -516,6 +518,23 @@ function fillReviewYears(){
   if(selectedReviewYear!=='all'&&!years.includes(selectedReviewYear))selectedReviewYear='all';
   el.value=selectedReviewYear;
 }
+function toggleReviewMonth(key){
+  selectedReviewMonth=selectedReviewMonth===key?'':key;
+  renderMonthlyReview();
+}
+function renderMonthlyTicketPanel(){
+  const panel=$('#monthlyTicketPanel');if(!panel)return;
+  if(!selectedReviewMonth){panel.innerHTML='';return;}
+  const list=reviewFilteredData().filter(x=>{
+    if(!x.date)return false;
+    const d=new Date(x.date);if(Number.isNaN(d.getTime()))return false;
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    return key===selectedReviewMonth;
+  });
+  const [y,m]=selectedReviewMonth.split('-');
+  panel.innerHTML=`<div class="sectionhead"><h3>${y} 年 ${Number(m)} 月</h3><span class="muted">${list.length} 張票券</span></div>`+
+    (list.length?list.map(ticketCard).join(''):'<div class="empty">這個月份沒有票券。</div>');
+}
 function renderMonthlyReview(){
   const box=$('#monthlyReview');if(!box)return;
   const months={};
@@ -528,7 +547,11 @@ function renderMonthlyReview(){
     months[key].spend+=Number(x.price)||0;
   });
   const rows=Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0]));
-  box.innerHTML=rows.length?`<div class="statsgrid">${rows.map(([key,v])=>{const [y,m]=key.split('-');return `<div class="statcard"><span class="muted">${y} 年 ${Number(m)} 月</span><b>${v.count} 次</b><div class="muted" style="margin-top:6px">總花費 NT$ ${Math.round(v.spend).toLocaleString()}</div></div>`}).join('')}</div>`:'<div class="empty">目前沒有可統計的月份資料。</div>';
+  box.innerHTML=rows.length?`<div class="statsgrid">${rows.map(([key,v])=>{
+    const [y,m]=key.split('-');
+    return `<button type="button" class="statcard ${selectedReviewMonth===key?'active':''}" onclick="toggleReviewMonth('${key}')" style="text-align:left;width:100%;border:0"><span class="muted">${y} 年 ${Number(m)} 月</span><b>${v.count} 次</b><div class="muted" style="margin-top:6px">總花費 NT$ ${Math.round(v.spend).toLocaleString()}</div></button>`;
+  }).join('')}</div>`:'<div class="empty">目前沒有可統計的月份資料。</div>';
+  renderMonthlyTicketPanel();
 }
 
 function renderStats(){
@@ -728,7 +751,7 @@ $('#upcomingTrack')?.addEventListener('scroll',updateUpcomingDots,{passive:true}
     await migrateInlineMedia();
     await hydrateAllMedia();
   }catch(e){console.warn('TicketBox media init',e)}
-  $('#reviewYear')?.addEventListener('change',e=>{selectedReviewYear=e.target.value;selectedReviewType='';renderStats();});
+  $('#reviewYear')?.addEventListener('change',e=>{selectedReviewYear=e.target.value;selectedReviewType='';selectedReviewMonth='';renderStats();});
 renderAll();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 })();
