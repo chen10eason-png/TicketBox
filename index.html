@@ -237,6 +237,17 @@
   to{opacity:1;transform:translateY(0)}
 }
 
+
+/* v1.9.9 分享票券卡片：獨立樣式，不影響原票券 */
+#shareCardDlg{max-width:430px}
+.share-card{overflow:hidden;border-radius:24px;background:#fff;border:1px solid rgba(15,23,42,.10);box-shadow:0 16px 40px rgba(15,23,42,.12)}
+.share-card-cover{height:210px;background:#f1f5f9 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:64px}
+.share-card-body{padding:20px}
+.share-card-brand{font-size:12px;font-weight:800;letter-spacing:.08em;color:#64748b;margin-bottom:10px}
+.share-card-title{font-size:24px;font-weight:900;line-height:1.2;margin:0 0 14px;color:#0f172a}
+.share-card-row{font-size:14px;line-height:1.55;color:#334155;margin-top:7px}
+.share-card-type{display:inline-block;margin-top:16px;padding:6px 10px;border-radius:999px;background:#f1f5f9;font-size:12px;font-weight:800;color:#334155}
+
 </style>
 </head>
 <body>
@@ -357,6 +368,7 @@
 </form></dialog>
 
 <dialog id="detailDlg"><div id="detailContent"></div></dialog>
+<dialog id="shareCardDlg"><div class="dlghead"><h2>分享票券卡片</h2><button class="close" type="button" onclick="closeShareCard()">×</button></div><div class="formbody"><div id="shareCardPreview"></div><div class="actions"><button class="secondary" type="button" onclick="closeShareCard()">取消</button><button class="primary" type="button" id="shareCardAction">分享圖片</button></div><div class="muted" style="text-align:center;margin-top:8px">分享卡片不包含 QR Code、條碼、票號與備註。</div></div></dialog>
 
 <dialog id="qrZoomDlg" class="qrZoomDialog"><div class="qrZoomWrap"><div class="qrZoomHead"><b>票券 QR / 條碼</b><button class="qrZoomClose" type="button" aria-label="關閉" onclick="closeQRZoom()">×</button></div><div class="qrZoomStage" onclick="closeQRZoom()"><img id="qrZoomImg" alt="放大的票券 QR 或條碼" onclick="event.stopPropagation()"></div><div class="qrZoomHint">可將螢幕亮度調高給驗票人員掃描；點背景或 × 關閉</div></div></dialog>
 
@@ -377,7 +389,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.8';
+const APP_VERSION='1.9.9';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -761,7 +773,94 @@ syncIOSBottom();
 async function openQRZoom(id){let x=data.find(v=>v.id===id);if(!x||!x.codeImage)return;let src=await mediaGet(x.codeImage);if(!src)return;$('#qrZoomImg').src=src;$('#qrZoomDlg').showModal()}
 function closeQRZoom(){let d=$('#qrZoomDlg');if(d&&d.open)d.close()}
 window.openQRZoom=openQRZoom;window.closeQRZoom=closeQRZoom;
-window.showDetail=showDetail;window.duplicateTicket=id=>{let x=data.find(v=>v.id===id);if(!x)return;let c={...x,id:crypto.randomUUID(),name:x.name+'（副本）',status:'upcoming',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};data.push(c);persist();$('#detailDlg').close();showDetail(c.id)};window.downloadICS=id=>{let x=data.find(v=>v.id===id);if(!x||!x.date)return alert('這張票券還沒有日期時間');let f=d=>new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z'),start=f(x.date),end=f(x.endDate||new Date(new Date(x.date).getTime()+2*3600000)),ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TicketBox//ZH-TW\r\nBEGIN:VEVENT\r\nUID:${x.id}@ticketbox\r\nDTSTART:${start}\r\nDTEND:${end}\r\nSUMMARY:${String(x.name).replace(/[,;]/g,' ')}\r\nLOCATION:${String(x.place||'').replace(/[,;]/g,' ')}\r\nDESCRIPTION:${String(x.seat||'').replace(/[,;]/g,' ')}\r\nEND:VEVENT\r\nEND:VCALENDAR`;let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));a.download=(x.name||'TicketBox')+'.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};window.shareTicket=async id=>{let x=data.find(v=>v.id===id);if(!x)return;let text=`${x.name}\n${fmtDate(x.date)}${x.place?'\n'+x.place:''}${x.seat?'\n'+x.seat:''}`;try{if(navigator.share)await navigator.share({title:x.name,text});else{await navigator.clipboard.writeText(text);alert('已複製可分享資訊（不含 QR Code 與票號）')}}catch(e){}};window.toggleUsed=id=>{let x=data.find(v=>v.id===id);if(!x)return;x.status=effectiveStatus(x)==='used'?'upcoming':'used';x.updatedAt=new Date().toISOString();persist();$('#detailDlg').close();showDetail(id)};window.deleteTicket=async id=>{if(confirm('確定要刪除這張票券？')){let x=data.find(v=>v.id===id);if(x){await mediaDelete(x.cover);await mediaDelete(x.codeImage)}data=data.filter(x=>x.id!==id);persist();$('#detailDlg').close()}};
+window.showDetail=showDetail;window.duplicateTicket=id=>{let x=data.find(v=>v.id===id);if(!x)return;let c={...x,id:crypto.randomUUID(),name:x.name+'（副本）',status:'upcoming',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};data.push(c);persist();$('#detailDlg').close();showDetail(c.id)};window.downloadICS=id=>{let x=data.find(v=>v.id===id);if(!x||!x.date)return alert('這張票券還沒有日期時間');let f=d=>new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z'),start=f(x.date),end=f(x.endDate||new Date(new Date(x.date).getTime()+2*3600000)),ics=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//TicketBox//ZH-TW\r\nBEGIN:VEVENT\r\nUID:${x.id}@ticketbox\r\nDTSTART:${start}\r\nDTEND:${end}\r\nSUMMARY:${String(x.name).replace(/[,;]/g,' ')}\r\nLOCATION:${String(x.place||'').replace(/[,;]/g,' ')}\r\nDESCRIPTION:${String(x.seat||'').replace(/[,;]/g,' ')}\r\nEND:VEVENT\r\nEND:VCALENDAR`;let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));a.download=(x.name||'TicketBox')+'.ics';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};let currentShareTicketId='';
+function closeShareCard(){const d=$('#shareCardDlg');if(d&&d.open)d.close()}
+window.closeShareCard=closeShareCard;
+
+async function buildShareCardBlob(x){
+  const W=1080,H=1350,cv=document.createElement('canvas'),ctx=cv.getContext('2d');
+  cv.width=W;cv.height=H;
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+
+  const cover=await mediaGet(x.cover||'');
+  let bodyY=160;
+  if(cover){
+    try{
+      const img=new Image();
+      await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=cover});
+      const boxH=560,scale=Math.max(W/img.width,boxH/img.height);
+      const sw=W/scale,sh=boxH/scale,sx=(img.width-sw)/2,sy=(img.height-sh)/2;
+      ctx.drawImage(img,sx,sy,sw,sh,0,0,W,boxH);
+      bodyY=650;
+    }catch(e){}
+  }else{
+    ctx.fillStyle='#f1f5f9';ctx.fillRect(0,0,W,500);
+    ctx.fillStyle='#334155';ctx.font='120px sans-serif';ctx.textAlign='center';
+    ctx.fillText(icons[x.type]||'🎟️',W/2,300);ctx.textAlign='left';bodyY=590;
+  }
+
+  const pad=80;
+  ctx.fillStyle='#64748b';ctx.font='700 30px sans-serif';ctx.fillText('TICKETBOX',pad,bodyY);
+  bodyY+=72;
+
+  function wrap(text,maxWidth,font,lineH,maxLines=3){
+    ctx.font=font;const chars=[...String(text||'')];let lines=[],line='';
+    for(const ch of chars){
+      const test=line+ch;
+      if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=ch;if(lines.length>=maxLines)break}
+      else line=test;
+    }
+    if(lines.length<maxLines&&line)lines.push(line);
+    return lines.slice(0,maxLines).map((v,i)=>i===maxLines-1&&chars.join('').length>lines.join('').length?v+'…':v);
+  }
+  ctx.fillStyle='#0f172a';let titleLines=wrap(x.name,W-pad*2,'900 58px sans-serif',72,3);
+  ctx.font='900 58px sans-serif';
+  titleLines.forEach(line=>{ctx.fillText(line,pad,bodyY);bodyY+=72});
+  bodyY+=24;
+
+  ctx.fillStyle='#334155';ctx.font='500 34px sans-serif';
+  const rows=[];
+  if(x.date)rows.push('📅 '+fmtDate(x.date));
+  const route=routeLabel(x); if(route)rows.push('📍 '+route);
+  if(x.seat)rows.push('🎫 '+x.seat);
+  rows.forEach(row=>{
+    wrap(row,W-pad*2,'500 34px sans-serif',48,2).forEach(line=>{ctx.fillText(line,pad,bodyY);bodyY+=48});
+    bodyY+=12;
+  });
+
+  ctx.fillStyle='#f1f5f9';ctx.beginPath();ctx.roundRect(pad,bodyY+18,Math.min(320,120+String(x.type||'票券').length*40),64,32);ctx.fill();
+  ctx.fillStyle='#334155';ctx.font='700 28px sans-serif';ctx.fillText((icons[x.type]||'🎟️')+' '+(x.type||'票券'),pad+24,bodyY+60);
+
+  ctx.fillStyle='#94a3b8';ctx.font='500 24px sans-serif';ctx.fillText('分享卡片已隱藏票碼與票號',pad,H-70);
+
+  return await new Promise(resolve=>cv.toBlob(resolve,'image/png',.95));
+}
+
+window.shareTicket=async id=>{
+  const x=data.find(v=>v.id===id);if(!x)return;
+  currentShareTicketId=id;
+  const cover=await mediaGet(x.cover||'');
+  const route=routeLabel(x);
+  $('#shareCardPreview').innerHTML=`<div class="share-card"><div class="share-card-cover" ${cover?`style="background-image:url('${cover}')"`:''}>${cover?'':icons[x.type]||'🎟️'}</div><div class="share-card-body"><div class="share-card-brand">TICKETBOX</div><div class="share-card-title">${esc(x.name)}</div>${x.date?`<div class="share-card-row">📅 ${fmtDate(x.date)}</div>`:''}${route?`<div class="share-card-row">📍 ${esc(route)}</div>`:''}${x.seat?`<div class="share-card-row">🎫 ${esc(x.seat)}</div>`:''}<span class="share-card-type">${icons[x.type]||'🎟️'} ${esc(x.type||'票券')}</span></div></div>`;
+  $('#shareCardDlg').showModal();
+};
+
+$('#shareCardAction').onclick=async()=>{
+  const x=data.find(v=>v.id===currentShareTicketId);if(!x)return;
+  const btn=$('#shareCardAction'),old=btn.textContent;btn.disabled=true;btn.textContent='製作中…';
+  try{
+    const blob=await buildShareCardBlob(x);
+    if(!blob)throw new Error('image failed');
+    const file=new File([blob],(x.name||'TicketBox')+'.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})&&navigator.share){
+      await navigator.share({files:[file],title:x.name});
+    }else{
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(x.name||'TicketBox')+'-分享卡片.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+      alert('分享圖片已產生，可從下載的圖片分享。');
+    }
+  }catch(e){if(e&&e.name!=='AbortError'){console.error(e);alert('分享圖片產生失敗，請再試一次。')}}
+  finally{btn.disabled=false;btn.textContent=old}
+};window.toggleUsed=id=>{let x=data.find(v=>v.id===id);if(!x)return;x.status=effectiveStatus(x)==='used'?'upcoming':'used';x.updatedAt=new Date().toISOString();persist();$('#detailDlg').close();showDetail(id)};window.deleteTicket=async id=>{if(confirm('確定要刪除這張票券？')){let x=data.find(v=>v.id===id);if(x){await mediaDelete(x.cover);await mediaDelete(x.codeImage)}data=data.filter(x=>x.id!==id);persist();$('#detailDlg').close()}};
 $('#type').addEventListener('change',syncPlaceFields);
 $('#add').onclick=()=>openEdit();$('#settingsBtn').onclick=()=>{
   $('#privacySetting').checked=settings.privacy;
