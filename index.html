@@ -342,6 +342,11 @@
 
   <section id="viewTickets" class="view active">
     <div id="reminderBanner" class="reminder-banner"></div>
+<div id="pushTestPanel" class="card" style="margin:0 0 12px;padding:12px">
+<div style="font-weight:850">🔔 v1.9.15 背景通知測試</div>
+<div id="pushTestStatus" class="muted" style="margin-top:5px">尚未檢查通知狀態</div>
+<button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button>
+</div>
 
     <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
     <div class="quick">
@@ -476,7 +481,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.14';
+const APP_VERSION='1.9.15-test';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -615,6 +620,31 @@ function renderReminderBanner(){
   el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">${esc(due.name)}</div><div class="reminder-time">${when}${place?'・'+esc(place):''}</div></div><div class="reminder-actions"><button class="reminder-open" onclick="showDetail('${due.id}')">查看票券</button><button class="reminder-dismiss" aria-label="關閉提醒" onclick="dismissReminder('${due.id}')">×</button></div>`;
   el.classList.add('show');
 }
+
+
+function setPushTestStatus(msg){const el=document.getElementById('pushTestStatus');if(el)el.textContent=msg}
+async function enableTicketBoxPush(){
+  try{
+    if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){
+      setPushTestStatus('此環境目前不支援 Web Push。iPhone 請先加入主畫面，再從主畫面開啟 TicketBox。');return;
+    }
+    let permission=Notification.permission;
+    if(permission!=='granted') permission=await Notification.requestPermission();
+    if(permission!=='granted'){setPushTestStatus('通知權限尚未允許。');return}
+    await navigator.serviceWorker.ready;
+    setPushTestStatus('✅ 通知權限正常，Service Worker 已就緒。');
+  }catch(e){
+    console.error(e);setPushTestStatus('通知測試失敗：'+(e&&e.message?e.message:'未知錯誤'));
+  }
+}
+window.enableTicketBoxPush=enableTicketBoxPush;
+window.addEventListener('load',()=>{
+  if(!document.getElementById('pushTestStatus'))return;
+  if(!('Notification' in window)) setPushTestStatus('目前環境沒有 Notification API');
+  else if(Notification.permission==='granted') setPushTestStatus('通知權限：已允許');
+  else if(Notification.permission==='denied') setPushTestStatus('通知權限：已拒絕');
+  else setPushTestStatus('通知權限：尚未詢問');
+});
 
 function storageUsageText(){
   try{
