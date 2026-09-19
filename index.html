@@ -346,7 +346,7 @@
 <div style="font-weight:850">🔔 v1.9.15 Push Subscription 測試</div>
 <div id="pushTestStatus" class="muted" style="margin-top:5px">尚未檢查通知狀態</div>
 <button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button><select id="pushTicketSelect" style="margin-top:9px;width:100%"></select>
-<button class="secondary" style="margin-top:9px" type="button" onclick="sendTicketBoxPushTest()">發送「指定票券」測試通知</button>
+<button class="secondary" style="margin-top:9px" type="button" onclick="sendTicketBoxPushTest()">發送「指定票券」測試通知</button><button class="secondary" style="margin-top:9px" type="button" onclick="syncSelectedTicketReminders()">同步這張票的正式提醒排程</button>
 </div>
 
     <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
@@ -664,13 +664,30 @@ async function sendTicketBoxPushTest(){
     const ticket=(Array.isArray(data)?data:[]).find(x=>x.id===ticketId);
     if(!ticket){setPushTestStatus('請先建立至少一張票券。');return}
     setPushTestStatus('正在發送指定票券通知…');
-    const res=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-send-test',{method:'POST',headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},body:JSON.stringify({deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:ticket.date||''})});
+    const res=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-send-test',{method:'POST',headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},body:JSON.stringify({deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTimeDisplay:(()=>{const d=new Date(ticket.date);if(Number.isNaN(d.getTime()))return '';return new Intl.DateTimeFormat('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d)})()})});
     const body=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(body.detail||body.error||('HTTP '+res.status));
     setPushTestStatus('✅ 指定票券通知已送出；請點通知測試是否直接開啟該票券。');
   }catch(e){console.error(e);setPushTestStatus('測試通知失敗：'+(e&&e.message?e.message:'未知錯誤'))}
 }
 window.sendTicketBoxPushTest=sendTicketBoxPushTest;
+
+async function syncSelectedTicketReminders(){
+ try{
+  const deviceId=localStorage.getItem('ticketbox-push-device-id');
+  const sel=document.getElementById('pushTicketSelect'), ticket=(Array.isArray(data)?data:[]).find(x=>x.id===(sel&&sel.value));
+  if(!deviceId){setPushTestStatus('請先啟用通知。');return}
+  if(!ticket){setPushTestStatus('請先選擇票券。');return}
+  const d=new Date(ticket.date); if(Number.isNaN(d.getTime())){setPushTestStatus('票券時間無效。');return}
+  const display=new Intl.DateTimeFormat('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+  setPushTestStatus('正在同步提醒排程…');
+  const res=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-reminders',{method:'POST',headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},body:JSON.stringify({action:'sync',deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:d.toISOString(),eventTimeDisplay:display})});
+  const b=await res.json().catch(()=>({})); if(!res.ok)throw new Error(b.error||('HTTP '+res.status));
+  setPushTestStatus('✅ 提醒排程已同步'+(b.immediate?'；目前區間會立即發送 '+b.immediate:'')+'。');
+ }catch(e){console.error(e);setPushTestStatus('排程同步失敗：'+(e&&e.message?e.message:'未知錯誤'))}
+}
+window.syncSelectedTicketReminders=syncSelectedTicketReminders;
+
 window.addEventListener('load',()=>setTimeout(fillPushTicketSelect,300));
 
 
