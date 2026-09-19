@@ -297,6 +297,26 @@
   font-size:13px;
   font-weight:750;
 }
+
+/* v1.9.14-test2：3 小時與 1 小時提醒明顯區隔 */
+.reminder-banner.reminder-3h{
+  background:#fff4d6!important;
+  border:2px solid #f2b84b!important;
+  box-shadow:0 10px 28px rgba(242,184,75,.22)!important;
+}
+.reminder-banner.reminder-1h{
+  background:#ffe7e7!important;
+  border:2px solid #e25555!important;
+  box-shadow:0 10px 30px rgba(226,85,85,.25)!important;
+}
+.reminder-banner.reminder-1h .reminder-label{
+  background:#e25555!important;
+  color:white!important;
+}
+.reminder-banner.reminder-3h .reminder-label{
+  background:#f2b84b!important;
+  color:#4b3210!important;
+}
 </style>
 </head>
 <body>
@@ -309,6 +329,7 @@
   <button class="smallbtn" type="button" onclick="previewReminderTest(1440)">測試 1 天前</button>
   <button class="smallbtn" type="button" onclick="previewReminderTest(180)">測試 3 小時前</button>
   <button class="smallbtn" type="button" onclick="previewReminderTest(60)">測試 1 小時前</button>
+  <button class="smallbtn" type="button" onclick="testSystemNotification()">測試系統通知</button>
   <button class="smallbtn" type="button" onclick="clearReminderTest()">結束測試</button>
 </div>
     <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
@@ -444,7 +465,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.14-test';
+const APP_VERSION='1.9.14-test2';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -561,14 +582,14 @@ function renderReminderBanner(){
     return Number.isFinite(t)&&Number.isFinite(mins)&&t-now>=0&&t-now<=mins*60000;
   }).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime())[0];
 
-  el.classList.remove('show','reminder-soon','reminder-urgent');
+  el.classList.remove('show','reminder-soon','reminder-urgent','reminder-3h','reminder-1h');
   if(!due){el.innerHTML='';return}
 
   let diff=Math.max(0,new Date(due.date).getTime()-now), mins=Math.max(0,Math.round(diff/60000));
   let when=mins<60?`${mins} 分鐘後`:mins<1440?`${Math.max(1,Math.round(mins/60))} 小時後`:`${Math.max(1,Math.round(mins/1440))} 天後`;
   let label='行程提醒', icon='⏰';
-  if(mins<=60){label='即將開始';icon='🔔';el.classList.add('reminder-urgent')}
-  else if(mins<=180){label='3 小時內';icon='⏳';el.classList.add('reminder-urgent')}
+  if(mins<=60){label='1 小時內・即將開始';icon='🚨';el.classList.add('reminder-1h')}
+  else if(mins<=180){label='3 小時內・準備出發';icon='⏳';el.classList.add('reminder-3h')}
   else if(mins<=1440){label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon')}
 
   const place=routeLabel(due);
@@ -577,15 +598,43 @@ function renderReminderBanner(){
 }
 function previewReminderTest(mins){
   const el=$('#reminderBanner');if(!el)return;
-  el.classList.remove('show','reminder-soon','reminder-urgent');
+  el.classList.remove('show','reminder-soon','reminder-urgent','reminder-3h','reminder-1h');
   let label='行程提醒',icon='⏰',when='';
-  if(mins<=60){label='即將開始';icon='🔔';el.classList.add('reminder-urgent');when='60 分鐘後'}
-  else if(mins<=180){label='3 小時內';icon='⏳';el.classList.add('reminder-urgent');when='3 小時後'}
+  if(mins<=60){label='1 小時內・即將開始';icon='🚨';el.classList.add('reminder-1h');when='60 分鐘後'}
+  else if(mins<=180){label='3 小時內・準備出發';icon='⏳';el.classList.add('reminder-3h');when='3 小時後'}
   else {label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon');when='1 天後'}
   el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">測試票券：台北大巨蛋</div><div class="reminder-time">${when}・台北大巨蛋</div></div><button class="reminder-open" type="button">查看票券</button>`;
   el.classList.add('show');
   el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
+async function testSystemNotification(){
+  try{
+    if(!('Notification' in window)){
+      alert('這個瀏覽器目前不支援系統通知。若是 iPhone，請先把 TicketBox 加到主畫面，再從主畫面開啟。');
+      return;
+    }
+    let permission=Notification.permission;
+    if(permission!=='granted') permission=await Notification.requestPermission();
+    if(permission!=='granted'){
+      alert('尚未允許通知。請到 iPhone 設定中允許 TicketBox 通知後再測試。');
+      return;
+    }
+    if('serviceWorker' in navigator){
+      const reg=await navigator.serviceWorker.ready;
+      await reg.showNotification('TicketBox 測試通知',{
+        body:'你的票券將在 1 小時後開始・台北大巨蛋',
+        tag:'ticketbox-test-reminder'
+      });
+    }else{
+      new Notification('TicketBox 測試通知',{body:'你的票券將在 1 小時後開始・台北大巨蛋'});
+    }
+  }catch(e){
+    console.error(e);
+    alert('通知測試失敗。若是 iPhone，請確認 TicketBox 已加入主畫面並允許通知。');
+  }
+}
+window.testSystemNotification=testSystemNotification;
+
 function clearReminderTest(){
   renderReminderBanner();
 }
