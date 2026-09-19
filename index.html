@@ -601,9 +601,9 @@ function renderReminderBanner(){
   let el=$('#reminderBanner'); if(!el)return;
   let now=Date.now();
   let due=data.filter(x=>{
-    if(!x.date||effectiveStatus(x)!=='upcoming'||!x.reminder||x.reminder==='none')return false;
-    let t=new Date(x.date).getTime(), mins=Number(x.reminder);
-    return Number.isFinite(t)&&Number.isFinite(mins)&&t-now>=0&&t-now<=mins*60000;
+    if(!x.date||effectiveStatus(x)!=='upcoming')return false;
+    let t=new Date(x.date).getTime(), diff=t-now;
+    return Number.isFinite(t)&&diff>=0&&diff<=1440*60000;
   }).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime())[0];
 
   el.classList.remove('show','reminder-soon','reminder-urgent','reminder-3h','reminder-1h');
@@ -678,24 +678,45 @@ async function syncTicketBackgroundReminder(ticket){
     if(Number.isNaN(event.getTime())||event.getTime()<=Date.now())return;
     if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))return;
     if(Notification.permission!=='granted')return;
-    const deviceId=localStorage.getItem('ticketbox-push-device-id');
-    if(!deviceId)return;
+
+    // Self-heal Push registration so a missing local device id cannot silently block reminders.
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){
+      const b64="BJkan_An2jA06AdB41y_CYwfy7L4nBWknSsAmIs3ricrFQ2K0hil6r1yy2D_ofrn11AlNTwfJzY-FYhV1Xmtb5E".replace(/-/g,'+').replace(/_/g,'/');
+      const raw=atob(b64+'='.repeat((4-b64.length%4)%4));
+      const vapid=Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+      sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapid});
+    }
+    let deviceId=localStorage.getItem('ticketbox-push-device-id');
+    if(!deviceId){deviceId=(crypto.randomUUID?crypto.randomUUID():'d_'+Date.now()+'_'+Math.random().toString(36).slice(2));localStorage.setItem('ticketbox-push-device-id',deviceId)}
+    const regRes=await fetch("https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-push",{
+      method:'POST',headers:{'Content-Type':'application/json','apikey':"sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp"},
+      body:JSON.stringify({action:'subscribe',deviceId,subscription:sub.toJSON(),userAgent:navigator.userAgent})
+    });
+    if(!regRes.ok)throw new Error('Push registration '+regRes.status);
+
     const display=new Intl.DateTimeFormat('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(event);
     const res=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-reminders',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},
       body:JSON.stringify({action:'sync',deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:event.toISOString(),eventTimeDisplay:display})
     });
-    if(!res.ok){console.warn('TicketBox reminder sync failed',res.status);return}
     const result=await res.json().catch(()=>({}));
-    if(result&&result.immediate){
-      fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-reminders',{
+    if(!res.ok)throw new Error(result.detail||result.error||('Reminder sync '+res.status));
+
+    if(result.immediate){
+      const sendRes=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-reminders',{
         method:'POST',
         headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},
         body:JSON.stringify({action:'process',deviceId})
-      }).catch(e=>console.warn('TicketBox immediate push failed',e));
+      });
+      const sendResult=await sendRes.json().catch(()=>({}));
+      if(!sendRes.ok)throw new Error(sendResult.detail||sendResult.error||('Immediate push '+sendRes.status));
     }
-  }catch(e){console.warn('TicketBox reminder sync failed',e)}
+  }catch(e){
+    console.error('TicketBox background reminder failed',e);
+  }
 }
 window.syncTicketBackgroundReminder=syncTicketBackgroundReminder;
 
@@ -994,7 +1015,7 @@ $('#form').onsubmit=async e=>{
     // Refresh the in-app reminder immediately after save, then sync background push.
     renderReminderBanner();
     const savedTicket=(Array.isArray(data)?data:[]).find(x=>String(x.id)===String(item.id))||item;
-    syncTicketBackgroundReminder(savedTicket);
+    await syncTicketBackgroundReminder(savedTicket);
   }catch(err){
     console.error('TicketBox save failed',err);
     alert('照片或票券儲存失敗。請重新開啟 TicketBox 後再試一次；若仍失敗，可能是 Safari 網站儲存空間已被系統限制。');
