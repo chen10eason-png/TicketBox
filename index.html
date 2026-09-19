@@ -406,7 +406,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.12';
+const APP_VERSION='1.9.13';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -498,7 +498,14 @@ function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt
 function fmtDate(v){if(!v)return'未設定時間';return new Date(v).toLocaleString('zh-TW',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}
 function effectiveStatus(x){if(x.status&&x.status!=='auto')return x.status;if(!x.date)return'upcoming';let now=new Date(), end=x.endDate?new Date(x.endDate):new Date(new Date(x.date).getTime()+4*3600000);if(now>end)return'used';return'upcoming'}
 function statusText(s){return s==='used'?'已使用':s==='expired'?'過期':'未使用'}
-function daysUntil(v){let d=Math.ceil((new Date(v)-new Date())/86400000);return d<=0?'今天':`${d} 天後`}
+function daysUntil(v){
+  const target=new Date(v),now=new Date();
+  if(Number.isNaN(target.getTime()))return '';
+  const a=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const b=new Date(target.getFullYear(),target.getMonth(),target.getDate());
+  const d=Math.round((b-a)/86400000);
+  return d<=0?'今天':`${d} 天後`;
+}
 function newTicketId(){
   try{if(window.crypto&&typeof crypto.randomUUID==='function')return crypto.randomUUID()}catch(e){}
   return 't_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9)
@@ -531,7 +538,7 @@ function storageUsageText(){
   }catch(e){return '無法計算'}
 }
 function ticketMatches(x){let q=$('#search').value.trim().toLowerCase();if(filterType&&x.type!==filterType)return false;let st=effectiveStatus(x), now=new Date(), dt=x.date?new Date(x.date):null;if(quickMode==='today'&&(!dt||dt.toDateString()!==now.toDateString()))return false;if(quickMode==='week'&&(!dt||dt<now||dt-now>7*86400000))return false;if(quickMode==='unused'&&st!=='upcoming')return false;if(quickMode==='fav'&&!x.favorite)return false;return !q||[x.type,x.name,x.place,x.origin,x.destination,x.seat,x.tags,x.note].join(' ').toLowerCase().includes(q)}
-function renderHero(){let now=new Date(),u=data.filter(x=>x.date&&effectiveStatus(x)==='upcoming'&&new Date(x.date)>=new Date(now.getTime()-14400000)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5),t=$('#upcomingTrack'),d=$('#upcomingDots');if(!u.length){t.innerHTML='<div class="upcoming-slide"><section class="hero"><small>下一張票</small><h2>還沒有即將使用的票券</h2><div class="meta">按右下角 ＋，把下一次旅行、比賽或演出放進 TicketBox。</div></section></div>';d.innerHTML='';return}t.innerHTML=u.map((x,i)=>`<div class="upcoming-slide"><section class="hero" onclick="showDetail('${x.id}')"><span class="upcoming-count">${i+1} / ${u.length}</span><small>${i?'接下來':'下一張票'}・${esc(x.type)}</small><h2>${esc(x.name)}</h2><div class="meta">${fmtDate(x.date)}${routeLabel(x)?'｜'+esc(routeLabel(x)):''}</div><div class="pills">${x.seat?`<span class="pill">${esc(x.seat)}</span>`:''}<span class="pill">${daysUntil(x.date)}</span>${x.favorite?'<span class="pill">❤️ 最愛</span>':''}</div>${mediaSrc(x.codeImage)?`<button class="hero-quick" onclick="event.stopPropagation();openQRZoom('${x.id}')">▣ 快速開票</button>`:''}</section></div>`).join('');d.innerHTML=u.length>1?u.map((_,i)=>`<button class="upcoming-dot ${i?'':'active'}" onclick="goUpcoming(${i})"></button>`).join(''):''}
+function renderHero(){let now=new Date(),u=data.filter(x=>{if(!x.date||effectiveStatus(x)!=='upcoming')return false;let t=new Date(x.date).getTime();return Number.isFinite(t)&&t>=now.getTime()}).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime()).slice(0,5),t=$('#upcomingTrack'),d=$('#upcomingDots');if(!u.length){t.innerHTML='<div class="upcoming-slide"><section class="hero"><small>下一張票</small><h2>還沒有即將使用的票券</h2><div class="meta">按右下角 ＋，把下一次旅行、比賽或演出放進 TicketBox。</div></section></div>';d.innerHTML='';return}t.innerHTML=u.map((x,i)=>`<div class="upcoming-slide"><section class="hero" onclick="showDetail('${x.id}')"><span class="upcoming-count">${i+1} / ${u.length}</span><small>${i?'接下來':'下一張票'}・${esc(x.type)}</small><h2>${esc(x.name)}</h2><div class="meta">${fmtDate(x.date)}${routeLabel(x)?'｜'+esc(routeLabel(x)):''}</div><div class="pills">${x.seat?`<span class="pill">${esc(x.seat)}</span>`:''}<span class="pill">${daysUntil(x.date)}</span>${x.favorite?'<span class="pill">❤️ 最愛</span>':''}</div>${mediaSrc(x.codeImage)?`<button class="hero-quick" onclick="event.stopPropagation();openQRZoom('${x.id}')">▣ 快速開票</button>`:''}</section></div>`).join('');d.innerHTML=u.length>1?u.map((_,i)=>`<button class="upcoming-dot ${i?'':'active'}" onclick="goUpcoming(${i})"></button>`).join(''):''}
 function goUpcoming(i){let t=$('#upcomingTrack');t.scrollTo({left:i*t.clientWidth,behavior:'smooth'})}
 function updateUpcomingDots(){let t=$('#upcomingTrack');if(!t||!t.clientWidth)return;let i=Math.round(t.scrollLeft/t.clientWidth);$$('.upcoming-dot').forEach((x,n)=>x.classList.toggle('active',n===i))}
 window.goUpcoming=goUpcoming;
@@ -542,9 +549,15 @@ window.openMap=q=>window.open('https://www.google.com/maps/search/?api=1&query='
 let selectedCalendarDate='';
 function calendarDateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function renderDayAgenda(key){
+  const wrap=$('#dayAgendaWrap');
+  if(selectedCalendarDate===key&&!wrap.classList.contains('hidden')){
+    selectedCalendarDate='';
+    wrap.classList.add('hidden');
+    renderCalendar(false);
+    return;
+  }
   selectedCalendarDate=key;
   const hits=data.filter(x=>x.date&&calendarDateKey(new Date(x.date))===key).sort((a,b)=>a.date.localeCompare(b.date));
-  const wrap=$('#dayAgendaWrap');
   if(!hits.length){wrap.classList.add('hidden');selectedCalendarDate='';return}
   const d=new Date(key+'T12:00:00');
   $('#dayAgendaTitle').textContent=`${d.getMonth()+1} 月 ${d.getDate()} 日票券`;
