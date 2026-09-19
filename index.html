@@ -317,6 +317,23 @@
   background:#f2b84b!important;
   color:#4b3210!important;
 }
+
+/* v1.9.14-test3：網站內提醒可關閉 */
+.reminder-banner .reminder-dismiss{
+  flex:0 0 auto;
+  border:0;
+  background:transparent;
+  color:#64748b;
+  font-size:18px;
+  line-height:1;
+  padding:7px;
+  border-radius:10px;
+}
+.reminder-banner .reminder-actions{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
 </style>
 </head>
 <body>
@@ -465,7 +482,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.14-test2';
+const APP_VERSION='1.9.14-test4';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -573,6 +590,14 @@ function isRouteType(type){return type==='交通'||type==='機票'}
 function routeLabel(x){if(isRouteType(x.type)&&(x.origin||x.destination))return `${x.origin||'未填起點'} → ${x.destination||'未填終點'}`;return x.place||''}
 function syncPlaceFields(){const route=isRouteType($('#type').value);$('#singlePlaceLabel').style.display=route?'none':'block';$('#routeFields').style.display=route?'block':'none'}
 function reminderText(v){return v==='1440'?'1 天前':v==='180'?'3 小時前':v==='60'?'1 小時前':v==='30'?'30 分鐘前':'不提醒'}
+let dismissedReminderId='';
+function dismissReminder(id){
+  dismissedReminderId=id||'';
+  const el=$('#reminderBanner');
+  if(el){el.classList.remove('show');el.innerHTML='';}
+}
+window.dismissReminder=dismissReminder;
+
 function renderReminderBanner(){
   let el=$('#reminderBanner'); if(!el)return;
   let now=Date.now();
@@ -583,7 +608,7 @@ function renderReminderBanner(){
   }).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime())[0];
 
   el.classList.remove('show','reminder-soon','reminder-urgent','reminder-3h','reminder-1h');
-  if(!due){el.innerHTML='';return}
+  if(!due||dismissedReminderId===due.id){el.innerHTML='';return}
 
   let diff=Math.max(0,new Date(due.date).getTime()-now), mins=Math.max(0,Math.round(diff/60000));
   let when=mins<60?`${mins} 分鐘後`:mins<1440?`${Math.max(1,Math.round(mins/60))} 小時後`:`${Math.max(1,Math.round(mins/1440))} 天後`;
@@ -593,7 +618,7 @@ function renderReminderBanner(){
   else if(mins<=1440){label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon')}
 
   const place=routeLabel(due);
-  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">${esc(due.name)}</div><div class="reminder-time">${when}${place?'・'+esc(place):''}</div></div><button class="reminder-open" onclick="showDetail('${due.id}')">查看票券</button>`;
+  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">${esc(due.name)}</div><div class="reminder-time">${when}${place?'・'+esc(place):''}</div></div><div class="reminder-actions"><button class="reminder-open" onclick="showDetail('${due.id}')">查看票券</button><button class="reminder-dismiss" aria-label="關閉提醒" onclick="dismissReminder('${due.id}')">×</button></div>`;
   el.classList.add('show');
 }
 function previewReminderTest(mins){
@@ -603,7 +628,7 @@ function previewReminderTest(mins){
   if(mins<=60){label='1 小時內・即將開始';icon='🚨';el.classList.add('reminder-1h');when='60 分鐘後'}
   else if(mins<=180){label='3 小時內・準備出發';icon='⏳';el.classList.add('reminder-3h');when='3 小時後'}
   else {label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon');when='1 天後'}
-  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">測試票券：台北大巨蛋</div><div class="reminder-time">${when}・台北大巨蛋</div></div><button class="reminder-open" type="button">查看票券</button>`;
+  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">測試票券：台北大巨蛋</div><div class="reminder-time">${when}・台北大巨蛋</div></div><div class="reminder-actions"><button class="reminder-open" type="button">查看票券</button><button class="reminder-dismiss" type="button" aria-label="關閉提醒" onclick="clearReminderTest()">×</button></div>`;
   el.classList.add('show');
   el.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -621,12 +646,12 @@ async function testSystemNotification(){
     }
     if('serviceWorker' in navigator){
       const reg=await navigator.serviceWorker.ready;
-      await reg.showNotification('TicketBox 測試通知',{
-        body:'你的票券將在 1 小時後開始・台北大巨蛋',
+      await reg.showNotification('測試票券｜1 小時後開始',{
+        body:'地點：台北大巨蛋',
         tag:'ticketbox-test-reminder'
       });
     }else{
-      new Notification('TicketBox 測試通知',{body:'你的票券將在 1 小時後開始・台北大巨蛋'});
+      new Notification('測試票券｜1 小時後開始',{body:'地點：台北大巨蛋'});
     }
   }catch(e){
     console.error(e);
