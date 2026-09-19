@@ -701,7 +701,7 @@ async function syncTicketBackgroundReminder(ticket){
     const res=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-reminders',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},
-      body:JSON.stringify({action:'sync',deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:event.toISOString(),eventTimeDisplay:display})
+      body:JSON.stringify({action:'sync',deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:event.toISOString(),eventTimeDisplay:display,appUrl:(location.origin+location.pathname)})
     });
     const result=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(result.detail||result.error||('Reminder sync '+res.status));

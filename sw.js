@@ -1,4 +1,4 @@
-const CACHE='ticketbox-v1.9.15-one-minute-v4';
+const CACHE='ticketbox-v1.9.15-push-reliability-v5';
 const CORE=['./','./index.html'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
@@ -10,8 +10,15 @@ self.addEventListener('fetch',e=>{
 self.addEventListener('push',event=>{
   let d={};
   try{d=event.data?event.data.json():{}}catch(e){d={body:event.data?event.data.text():'TicketBox 通知'}}
-  const title=d.title||'TicketBox';
-  const options={body:d.body||'',icon:'icon-192.png',badge:'icon-192.png',data:{ticketId:d.ticketId||'',url:d.url||'./'}};
+  // Supports both legacy Web Push and iOS 18.4+ Declarative Web Push.
+  // Newer iOS can display the declarative notification itself if the service worker
+  // cannot run in time; older browsers still use this showNotification fallback.
+  const n=d.notification||{};
+  const title=n.title||d.title||'TicketBox';
+  const nd=n.data||{};
+  const ticketId=nd.ticketId||d.ticketId||'';
+  const url=n.navigate||d.url||'./';
+  const options={body:n.body||d.body||'',icon:n.icon||'icon-192.png',badge:n.badge||'icon-192.png',data:{ticketId,url}};
   event.waitUntil(self.registration.showNotification(title,options));
 });
 self.addEventListener('notificationclick',event=>{
