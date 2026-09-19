@@ -345,7 +345,7 @@
 <div id="pushTestPanel" class="card" style="margin:0 0 12px;padding:12px">
 <div style="font-weight:850">🔔 v1.9.15 Push Subscription 測試</div>
 <div id="pushTestStatus" class="muted" style="margin-top:5px">尚未檢查通知狀態</div>
-<button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button>
+<button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button><button class="secondary" style="margin-top:9px" type="button" onclick="sendTicketBoxPushTest()">發送測試通知</button>
 </div>
 
     <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
@@ -647,6 +647,20 @@ async function enableTicketBoxPush(){
   }
 }
 window.enableTicketBoxPush=enableTicketBoxPush;
+
+async function sendTicketBoxPushTest(){
+  try{
+    const deviceId=localStorage.getItem('ticketbox-push-device-id');
+    if(!deviceId){setPushTestStatus('請先按「啟用通知」。');return}
+    setPushTestStatus('正在發送背景通知…');
+    const res=await fetch("https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-send-test",{method:'POST',headers:{'Content-Type':'application/json','apikey':"sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp"},body:JSON.stringify({deviceId})});
+    const body=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(body.detail||body.error||('HTTP '+res.status));
+    setPushTestStatus('✅ 伺服器已送出測試通知，請查看 iPhone 通知。');
+  }catch(e){console.error(e);setPushTestStatus('測試通知失敗：'+(e&&e.message?e.message:'未知錯誤'))}
+}
+window.sendTicketBoxPushTest=sendTicketBoxPushTest;
+
 window.addEventListener('load',()=>{
   if(!document.getElementById('pushTestStatus'))return;
   if(!('Notification' in window)) setPushTestStatus('目前環境沒有 Notification API');
