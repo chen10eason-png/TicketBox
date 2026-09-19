@@ -342,13 +342,7 @@
 
   <section id="viewTickets" class="view active">
     <div id="reminderBanner" class="reminder-banner"></div>
-<div id="reminderTestBar" style="display:flex;gap:7px;flex-wrap:wrap;margin:0 0 10px">
-  <button class="smallbtn" type="button" onclick="previewReminderTest(1440)">測試 1 天前</button>
-  <button class="smallbtn" type="button" onclick="previewReminderTest(180)">測試 3 小時前</button>
-  <button class="smallbtn" type="button" onclick="previewReminderTest(60)">測試 1 小時前</button>
-  <button class="smallbtn" type="button" onclick="testSystemNotification()">測試系統通知</button>
-  <button class="smallbtn" type="button" onclick="clearReminderTest()">結束測試</button>
-</div>
+
     <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
     <div class="quick">
       <button data-quick="today"><b>📍</b>今天</button><button data-quick="week"><b>🗓️</b>7 天內</button><button data-quick="unused"><b>🎟️</b>未使用</button><button data-quick="fav"><b>❤️</b>最愛</button>
@@ -482,7 +476,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.14-test4';
+const APP_VERSION='1.9.14';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -621,50 +615,6 @@ function renderReminderBanner(){
   el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">${esc(due.name)}</div><div class="reminder-time">${when}${place?'・'+esc(place):''}</div></div><div class="reminder-actions"><button class="reminder-open" onclick="showDetail('${due.id}')">查看票券</button><button class="reminder-dismiss" aria-label="關閉提醒" onclick="dismissReminder('${due.id}')">×</button></div>`;
   el.classList.add('show');
 }
-function previewReminderTest(mins){
-  const el=$('#reminderBanner');if(!el)return;
-  el.classList.remove('show','reminder-soon','reminder-urgent','reminder-3h','reminder-1h');
-  let label='行程提醒',icon='⏰',when='';
-  if(mins<=60){label='1 小時內・即將開始';icon='🚨';el.classList.add('reminder-1h');when='60 分鐘後'}
-  else if(mins<=180){label='3 小時內・準備出發';icon='⏳';el.classList.add('reminder-3h');when='3 小時後'}
-  else {label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon');when='1 天後'}
-  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">測試票券：台北大巨蛋</div><div class="reminder-time">${when}・台北大巨蛋</div></div><div class="reminder-actions"><button class="reminder-open" type="button">查看票券</button><button class="reminder-dismiss" type="button" aria-label="關閉提醒" onclick="clearReminderTest()">×</button></div>`;
-  el.classList.add('show');
-  el.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-async function testSystemNotification(){
-  try{
-    if(!('Notification' in window)){
-      alert('這個瀏覽器目前不支援系統通知。若是 iPhone，請先把 TicketBox 加到主畫面，再從主畫面開啟。');
-      return;
-    }
-    let permission=Notification.permission;
-    if(permission!=='granted') permission=await Notification.requestPermission();
-    if(permission!=='granted'){
-      alert('尚未允許通知。請到 iPhone 設定中允許 TicketBox 通知後再測試。');
-      return;
-    }
-    if('serviceWorker' in navigator){
-      const reg=await navigator.serviceWorker.ready;
-      await reg.showNotification('測試票券｜1 小時後開始',{
-        body:'地點：台北大巨蛋',
-        tag:'ticketbox-test-reminder'
-      });
-    }else{
-      new Notification('測試票券｜1 小時後開始',{body:'地點：台北大巨蛋'});
-    }
-  }catch(e){
-    console.error(e);
-    alert('通知測試失敗。若是 iPhone，請確認 TicketBox 已加入主畫面並允許通知。');
-  }
-}
-window.testSystemNotification=testSystemNotification;
-
-function clearReminderTest(){
-  renderReminderBanner();
-}
-window.previewReminderTest=previewReminderTest;
-window.clearReminderTest=clearReminderTest;
 
 function storageUsageText(){
   try{
