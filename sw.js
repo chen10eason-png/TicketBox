@@ -16,13 +16,17 @@ self.addEventListener('push',event=>{
 });
 self.addEventListener('notificationclick',event=>{
   event.notification.close();
-  const d=event.notification.data||{}, url=d.url||'./';
-  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+  const d=event.notification.data||{};
+  const ticketId=d.ticketId||'';
+  const target=new URL('./',self.registration.scope);
+  if(ticketId)target.searchParams.set('ticket',ticketId);
+  event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(async list=>{
     if(list.length){
       const c=list[0];
-      if(d.ticketId)c.postMessage({type:'OPEN_TICKET',ticketId:d.ticketId});
+      try{await c.navigate(target.href)}catch(e){}
+      if(ticketId)c.postMessage({type:'OPEN_TICKET',ticketId});
       return c.focus();
     }
-    return clients.openWindow(url);
+    return clients.openWindow(target.href);
   }));
 });

@@ -345,7 +345,8 @@
 <div id="pushTestPanel" class="card" style="margin:0 0 12px;padding:12px">
 <div style="font-weight:850">🔔 v1.9.15 Push Subscription 測試</div>
 <div id="pushTestStatus" class="muted" style="margin-top:5px">尚未檢查通知狀態</div>
-<button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button><button class="secondary" style="margin-top:9px" type="button" onclick="sendTicketBoxPushTest()">發送測試通知</button>
+<button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button><select id="pushTicketSelect" style="margin-top:9px;width:100%"></select>
+<button class="secondary" style="margin-top:9px" type="button" onclick="sendTicketBoxPushTest()">發送「指定票券」測試通知</button>
 </div>
 
     <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
@@ -648,18 +649,53 @@ async function enableTicketBoxPush(){
 }
 window.enableTicketBoxPush=enableTicketBoxPush;
 
+function fillPushTicketSelect(){
+  const sel=document.getElementById('pushTicketSelect');
+  if(!sel)return;
+  const items=(Array.isArray(data)?data:[]).filter(x=>x&&x.id);
+  sel.innerHTML=items.length?items.map(x=>`<option value="${esc(x.id)}">${esc(x.name||'未命名票券')}｜${esc(routeLabel(x)||'未填地點')}</option>`).join(''):'<option value="">目前沒有票券</option>';
+}
 async function sendTicketBoxPushTest(){
   try{
     const deviceId=localStorage.getItem('ticketbox-push-device-id');
     if(!deviceId){setPushTestStatus('請先按「啟用通知」。');return}
-    setPushTestStatus('正在發送背景通知…');
-    const res=await fetch("https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-send-test",{method:'POST',headers:{'Content-Type':'application/json','apikey':"sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp"},body:JSON.stringify({deviceId})});
+    const sel=document.getElementById('pushTicketSelect');
+    const ticketId=sel&&sel.value;
+    const ticket=(Array.isArray(data)?data:[]).find(x=>x.id===ticketId);
+    if(!ticket){setPushTestStatus('請先建立至少一張票券。');return}
+    setPushTestStatus('正在發送指定票券通知…');
+    const res=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-send-test',{method:'POST',headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},body:JSON.stringify({deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:ticket.date||''})});
     const body=await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(body.detail||body.error||('HTTP '+res.status));
-    setPushTestStatus('✅ 伺服器已送出測試通知，請查看 iPhone 通知。');
+    if(!res.ok)throw new Error(body.detail||body.error||('HTTP '+res.status));
+    setPushTestStatus('✅ 指定票券通知已送出；請點通知測試是否直接開啟該票券。');
   }catch(e){console.error(e);setPushTestStatus('測試通知失敗：'+(e&&e.message?e.message:'未知錯誤'))}
 }
 window.sendTicketBoxPushTest=sendTicketBoxPushTest;
+window.addEventListener('load',()=>setTimeout(fillPushTicketSelect,300));
+
+
+function openTicketFromPush(ticketId){
+  if(!ticketId)return false;
+  const hit=(Array.isArray(data)?data:[]).find(x=>String(x.id)===String(ticketId));
+  if(!hit)return false;
+  showDetail(hit.id);
+  return true;
+}
+function consumeTicketDeepLink(){
+  try{
+    const u=new URL(location.href), id=u.searchParams.get('ticket');
+    if(id && openTicketFromPush(id)){
+      u.searchParams.delete('ticket');
+      history.replaceState(null,'',u.pathname+(u.searchParams.toString()?'?'+u.searchParams.toString():'')+u.hash);
+    }
+  }catch(e){console.error(e)}
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message',e=>{
+    if(e.data&&e.data.type==='OPEN_TICKET') openTicketFromPush(e.data.ticketId);
+  });
+}
+window.addEventListener('load',()=>setTimeout(consumeTicketDeepLink,500));
 
 window.addEventListener('load',()=>{
   if(!document.getElementById('pushTestStatus'))return;
