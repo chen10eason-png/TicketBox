@@ -686,7 +686,15 @@ async function syncTicketBackgroundReminder(ticket){
       headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},
       body:JSON.stringify({action:'sync',deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:event.toISOString(),eventTimeDisplay:display})
     });
-    if(!res.ok)console.warn('TicketBox reminder sync failed',res.status);
+    if(!res.ok){console.warn('TicketBox reminder sync failed',res.status);return}
+    const result=await res.json().catch(()=>({}));
+    if(result&&result.immediate){
+      fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-reminders',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},
+        body:JSON.stringify({action:'process',deviceId})
+      }).catch(e=>console.warn('TicketBox immediate push failed',e));
+    }
   }catch(e){console.warn('TicketBox reminder sync failed',e)}
 }
 window.syncTicketBackgroundReminder=syncTicketBackgroundReminder;
@@ -983,8 +991,10 @@ $('#form').onsubmit=async e=>{
     renderAll();
     $('#form').reset();coverData='';codeImageData='';
     $('#editDlg').close();
-    // Background reminder sync is automatic; ticket saving never depends on network success.
-    syncTicketBackgroundReminder(item);
+    // Refresh the in-app reminder immediately after save, then sync background push.
+    renderReminderBanner();
+    const savedTicket=(Array.isArray(data)?data:[]).find(x=>String(x.id)===String(item.id))||item;
+    syncTicketBackgroundReminder(savedTicket);
   }catch(err){
     console.error('TicketBox save failed',err);
     alert('照片或票券儲存失敗。請重新開啟 TicketBox 後再試一次；若仍失敗，可能是 Safari 網站儲存空間已被系統限制。');
