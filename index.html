@@ -265,6 +265,38 @@
 .share-info-label{font-size:10px;font-weight:900;letter-spacing:.12em;color:#94a3b8}
 .share-info-value{font-size:14px;font-weight:750;color:#263244;line-height:1.35;margin-top:2px}
 .share-ticket-stub{display:flex;align-items:center;justify-content:space-between;border-top:2px dashed #e2e8f0;padding:14px 22px 17px;font-size:11px;font-weight:850;color:#64748b;letter-spacing:.08em}
+
+/* v1.9.14：只強化首頁 App 內提醒 */
+.reminder-banner.reminder-soon{
+  background:#fff3e8;
+  border-color:#f3c28f;
+}
+.reminder-banner.reminder-urgent{
+  background:#fff0f0;
+  border-color:#efaaaa;
+}
+.reminder-banner .reminder-label{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  margin-bottom:4px;
+  padding:4px 8px;
+  border-radius:999px;
+  background:rgba(255,255,255,.72);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.03em;
+}
+.reminder-banner .reminder-title{
+  font-size:15px;
+  font-weight:850;
+  line-height:1.35;
+}
+.reminder-banner .reminder-time{
+  margin-top:4px;
+  font-size:13px;
+  font-weight:750;
+}
 </style>
 </head>
 <body>
@@ -406,7 +438,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.13';
+const APP_VERSION='1.9.14';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -519,13 +551,22 @@ function renderReminderBanner(){
   let now=Date.now();
   let due=data.filter(x=>{
     if(!x.date||effectiveStatus(x)!=='upcoming'||!x.reminder||x.reminder==='none')return false;
-    let diff=new Date(x.date).getTime()-now, mins=Number(x.reminder);
-    return diff>=0 && diff<=mins*60000;
-  }).sort((a,b)=>a.date.localeCompare(b.date))[0];
-  if(!due){el.classList.remove('show');el.innerHTML='';return}
-  let diff=Math.max(0,new Date(due.date)-new Date()), mins=Math.round(diff/60000);
+    let t=new Date(x.date).getTime(), mins=Number(x.reminder);
+    return Number.isFinite(t)&&Number.isFinite(mins)&&t-now>=0&&t-now<=mins*60000;
+  }).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime())[0];
+
+  el.classList.remove('show','reminder-soon','reminder-urgent');
+  if(!due){el.innerHTML='';return}
+
+  let diff=Math.max(0,new Date(due.date).getTime()-now), mins=Math.max(0,Math.round(diff/60000));
   let when=mins<60?`${mins} 分鐘後`:mins<1440?`${Math.max(1,Math.round(mins/60))} 小時後`:`${Math.max(1,Math.round(mins/1440))} 天後`;
-  el.innerHTML=`<div><b>⏰ ${esc(due.name)}</b><div class="muted">${when}${routeLabel(due)?'・'+esc(routeLabel(due)):''}</div></div><button class="reminder-open" onclick="showDetail('${due.id}')">查看</button>`;
+  let label='行程提醒', icon='⏰';
+  if(mins<=60){label='即將開始';icon='🔔';el.classList.add('reminder-urgent')}
+  else if(mins<=180){label='3 小時內';icon='⏳';el.classList.add('reminder-urgent')}
+  else if(mins<=1440){label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon')}
+
+  const place=routeLabel(due);
+  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">${esc(due.name)}</div><div class="reminder-time">${when}${place?'・'+esc(place):''}</div></div><button class="reminder-open" onclick="showDetail('${due.id}')">查看票券</button>`;
   el.classList.add('show');
 }
 function storageUsageText(){
