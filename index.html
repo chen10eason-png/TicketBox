@@ -343,7 +343,7 @@
   <section id="viewTickets" class="view active">
     <div id="reminderBanner" class="reminder-banner"></div>
 <div id="pushTestPanel" class="card" style="margin:0 0 12px;padding:12px">
-<div style="font-weight:850">🔔 v1.9.15 背景通知測試</div>
+<div style="font-weight:850">🔔 v1.9.15 Push Subscription 測試</div>
 <div id="pushTestStatus" class="muted" style="margin-top:5px">尚未檢查通知狀態</div>
 <button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button>
 </div>
@@ -631,8 +631,17 @@ async function enableTicketBoxPush(){
     let permission=Notification.permission;
     if(permission!=='granted') permission=await Notification.requestPermission();
     if(permission!=='granted'){setPushTestStatus('通知權限尚未允許。');return}
-    await navigator.serviceWorker.ready;
-    setPushTestStatus('✅ 通知權限正常，Service Worker 已就緒。');
+    const reg=await navigator.serviceWorker.ready;
+    const b64="BJkan_An2jA06AdB41y_CYwfy7L4nBWknSsAmIs3ricrFQ2K0hil6r1yy2D_ofrn11AlNTwfJzY-FYhV1Xmtb5E".replace(/-/g,'+').replace(/_/g,'/');
+    const raw=atob(b64+'='.repeat((4-b64.length%4)%4));
+    const vapid=Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapid});
+    let deviceId=localStorage.getItem('ticketbox-push-device-id');
+    if(!deviceId){deviceId=crypto.randomUUID();localStorage.setItem('ticketbox-push-device-id',deviceId)}
+    const res=await fetch("https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-push",{method:'POST',headers:{'Content-Type':'application/json','apikey':"sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp"},body:JSON.stringify({action:'subscribe',deviceId,subscription:sub.toJSON(),userAgent:navigator.userAgent})});
+    if(!res.ok) throw new Error('Supabase 登記失敗 ('+res.status+')');
+    setPushTestStatus('✅ Push Subscription 已建立並登記到 TicketBox。');
   }catch(e){
     console.error(e);setPushTestStatus('通知測試失敗：'+(e&&e.message?e.message:'未知錯誤'));
   }
