@@ -1,4 +1,4 @@
-const CACHE='ticketbox-v1.9.15-push-reliability-v5';
+const CACHE='ticketbox-v1.9.15-final';
 const CORE=['./','./index.html'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});

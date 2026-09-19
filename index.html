@@ -266,6 +266,35 @@
 .share-info-value{font-size:14px;font-weight:750;color:#263244;line-height:1.35;margin-top:2px}
 .share-ticket-stub{display:flex;align-items:center;justify-content:space-between;border-top:2px dashed #e2e8f0;padding:14px 22px 17px;font-size:11px;font-weight:850;color:#64748b;letter-spacing:.08em}
 
+
+/* v1.9.15：多張符合提醒條件的票券可左右滑動 */
+.reminder-carousel{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  margin:0 0 12px;
+}
+.reminder-carousel::-webkit-scrollbar{display:none}
+.reminder-slide{
+  flex:0 0 100%;
+  scroll-snap-align:start;
+  box-sizing:border-box;
+}
+.reminder-dots{
+  display:flex;
+  justify-content:center;
+  gap:5px;
+  margin:-6px 0 10px;
+}
+.reminder-dot{
+  width:6px;height:6px;border-radius:999px;border:0;padding:0;
+  background:#cbd5e1;
+}
+.reminder-dot.active{width:16px;background:#64748b}
+
 /* v1.9.14：只強化首頁 App 內提醒 */
 .reminder-banner.reminder-soon{
   background:#fff3e8;
@@ -341,25 +370,7 @@
   <div class="topbar"><div class="brand"><h1>TicketBox</h1><div class="sub">我的票夾・把每一次出發都收藏起來</div></div><button class="iconbtn" id="settingsBtn" aria-label="設定">⚙️</button></div>
 
   <section id="viewTickets" class="view active">
-    <div id="reminderBanner" class="reminder-banner"></div>
-<div id="pushTestPanel" class="card" style="margin:0 0 12px;padding:12px">
-<div style="font-weight:850">🔔 v1.9.15 背景通知</div>
-<div id="pushTestStatus" class="muted" style="margin-top:5px">尚未檢查通知狀態</div>
-<button class="secondary" style="margin-top:9px" type="button" onclick="enableTicketBoxPush()">啟用通知</button>
-</div>
-
-    <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
-    <div class="quick">
-      <button data-quick="today"><b>📍</b>今天</button><button data-quick="week"><b>🗓️</b>7 天內</button><button data-quick="unused"><b>🎟️</b>未使用</button><button data-quick="fav"><b>❤️</b>最愛</button>
-    </div>
-    <div class="searchrow"><input id="search" class="search" placeholder="搜尋活動、場館、座位、標籤…"><button class="filterbtn" id="filterToggle">篩選</button></div>
-    <div id="filterBar" class="toolbar hidden" style="margin-top:10px"></div>
-    <div class="sectionhead"><h2>我的票券</h2><span id="count" class="muted"></span></div>
-    <div id="tickets" class="tickets"></div>
-  </section>
-
-  <section id="viewCalendar" class="view">
-    <div class="calbox"><div class="calhead"><button id="prevMonth">‹</button><h2 id="calTitle"></h2><button id="nextMonth">›</button></div><div class="week"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div><div id="calendarDays" class="days"></div></div>
+    <div id="reminderCarousel" class="reminder-carousel"></div><div id="reminderDots" class="reminder-dots"></div>
     <div id="dayAgendaWrap" class="hidden"><div class="sectionhead day-agenda-title"><h2 id="dayAgendaTitle">當日票券</h2><span class="muted" id="dayAgendaCount"></span></div><div id="dayAgenda" class="agenda"></div></div><div class="sectionhead"><h2>本月行程</h2><span class="muted" id="monthCount"></span></div><div id="agenda" class="agenda"></div>
   </section>
 
@@ -481,7 +492,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.15-test';
+const APP_VERSION='1.9.15';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -589,37 +600,54 @@ function isRouteType(type){return type==='交通'||type==='機票'}
 function routeLabel(x){if(isRouteType(x.type)&&(x.origin||x.destination))return `${x.origin||'未填起點'} → ${x.destination||'未填終點'}`;return x.place||''}
 function syncPlaceFields(){const route=isRouteType($('#type').value);$('#singlePlaceLabel').style.display=route?'none':'block';$('#routeFields').style.display=route?'block':'none'}
 function reminderText(v){return v==='1440'?'1 天前':v==='180'?'3 小時前':v==='60'?'1 小時前':v==='30'?'30 分鐘前':'不提醒'}
-let dismissedReminderId='';
+let dismissedReminderIds=new Set();
 function dismissReminder(id){
-  dismissedReminderId=id||'';
-  const el=$('#reminderBanner');
-  if(el){el.classList.remove('show');el.innerHTML='';}
+  if(id)dismissedReminderIds.add(id);
+  renderReminderBanner();
 }
 window.dismissReminder=dismissReminder;
 
-function renderReminderBanner(){
-  let el=$('#reminderBanner'); if(!el)return;
-  let now=Date.now();
-  let due=data.filter(x=>{
-    if(!x.date||effectiveStatus(x)!=='upcoming')return false;
-    let t=new Date(x.date).getTime(), diff=t-now;
-    return Number.isFinite(t)&&diff>=0&&diff<=1440*60000;
-  }).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime())[0];
-
-  el.classList.remove('show','reminder-soon','reminder-urgent','reminder-3h','reminder-1h');
-  if(!due||dismissedReminderId===due.id){el.innerHTML='';return}
-
-  let diff=Math.max(0,new Date(due.date).getTime()-now), mins=Math.max(0,Math.round(diff/60000));
+function reminderPresentation(due,now){
+  let diff=Math.max(0,new Date(due.date).getTime()-now);
+  let mins=Math.max(0,Math.round(diff/60000));
   let when=mins<60?`${mins} 分鐘後`:mins<1440?`${Math.max(1,Math.round(mins/60))} 小時後`:`${Math.max(1,Math.round(mins/1440))} 天後`;
-  let label='行程提醒', icon='⏰';
-  if(diff<=60000){label='即將開始';icon='🚨';el.classList.add('reminder-1h')}
-  else if(mins<=60){label='1 小時內・即將開始';icon='🚨';el.classList.add('reminder-1h')}
-  else if(mins<=180){label='3 小時內・準備出發';icon='⏳';el.classList.add('reminder-3h')}
-  else if(mins<=1440){label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon')}
+  let label='行程提醒',icon='⏰',cls='';
+  if(diff<=60000){label='即將開始';icon='🚨';cls='reminder-1h'}
+  else if(mins<=30){label='30 分鐘內・即將開始';icon='🚨';cls='reminder-1h'}
+  else if(mins<=60){label='1 小時內・即將開始';icon='🚨';cls='reminder-1h'}
+  else if(mins<=180){label='3 小時內・準備出發';icon='⏳';cls='reminder-3h'}
+  else if(mins<=1440){label='今天／明天就到了';icon='📣';cls='reminder-soon'}
+  return {diff,mins,when,label,icon,cls};
+}
 
-  const place=routeLabel(due);
-  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">${esc(due.name)}</div><div class="reminder-time">${when}${place?'・'+esc(place):''}</div></div><div class="reminder-actions"><button class="reminder-open" onclick="showDetail('${due.id}')">查看票券</button><button class="reminder-dismiss" aria-label="關閉提醒" onclick="dismissReminder('${due.id}')">×</button></div>`;
-  el.classList.add('show');
+function updateReminderDots(){
+  const track=$('#reminderCarousel'),dots=$('#reminderDots');
+  if(!track||!dots)return;
+  const slides=[...track.querySelectorAll('.reminder-slide')];
+  if(slides.length<=1){dots.innerHTML='';return}
+  const index=Math.max(0,Math.min(slides.length-1,Math.round(track.scrollLeft/Math.max(1,track.clientWidth))));
+  dots.innerHTML=slides.map((_,i)=>`<button class="reminder-dot ${i===index?'active':''}" aria-label="提醒 ${i+1}" onclick="document.getElementById('reminderCarousel').scrollTo({left:${i}*document.getElementById('reminderCarousel').clientWidth,behavior:'smooth'})"></button>`).join('');
+}
+window.updateReminderDots=updateReminderDots;
+
+function renderReminderBanner(){
+  const track=$('#reminderCarousel'),dots=$('#reminderDots'); if(!track)return;
+  const now=Date.now();
+  const due=data.filter(x=>{
+    if(!x.date||effectiveStatus(x)!=='upcoming'||dismissedReminderIds.has(x.id))return false;
+    const t=new Date(x.date).getTime(),diff=t-now;
+    return Number.isFinite(t)&&diff>=0&&diff<=1440*60000;
+  }).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime());
+
+  if(!due.length){track.innerHTML='';if(dots)dots.innerHTML='';return}
+
+  track.innerHTML=due.map(x=>{
+    const r=reminderPresentation(x,now),place=routeLabel(x);
+    return `<div class="reminder-banner reminder-slide ${r.cls} show"><div><div class="reminder-label">${r.icon} ${r.label}</div><div class="reminder-title">${esc(x.name)}</div><div class="reminder-time">${r.when}${place?'・'+esc(place):''}</div></div><div class="reminder-actions"><button class="reminder-open" onclick="showDetail('${x.id}')">查看票券</button><button class="reminder-dismiss" aria-label="關閉提醒" onclick="dismissReminder('${x.id}')">×</button></div></div>`;
+  }).join('');
+
+  track.onscroll=()=>requestAnimationFrame(updateReminderDots);
+  requestAnimationFrame(updateReminderDots);
 }
 
 
