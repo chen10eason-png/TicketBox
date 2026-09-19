@@ -305,6 +305,12 @@
 
   <section id="viewTickets" class="view active">
     <div id="reminderBanner" class="reminder-banner"></div>
+<div id="reminderTestBar" style="display:flex;gap:7px;flex-wrap:wrap;margin:0 0 10px">
+  <button class="smallbtn" type="button" onclick="previewReminderTest(1440)">測試 1 天前</button>
+  <button class="smallbtn" type="button" onclick="previewReminderTest(180)">測試 3 小時前</button>
+  <button class="smallbtn" type="button" onclick="previewReminderTest(60)">測試 1 小時前</button>
+  <button class="smallbtn" type="button" onclick="clearReminderTest()">結束測試</button>
+</div>
     <section><div class="upcoming-track" id="upcomingTrack"></div><div class="upcoming-dots" id="upcomingDots"></div></section>
     <div class="quick">
       <button data-quick="today"><b>📍</b>今天</button><button data-quick="week"><b>🗓️</b>7 天內</button><button data-quick="unused"><b>🎟️</b>未使用</button><button data-quick="fav"><b>❤️</b>最愛</button>
@@ -438,7 +444,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.14';
+const APP_VERSION='1.9.14-test';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -569,6 +575,23 @@ function renderReminderBanner(){
   el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">${esc(due.name)}</div><div class="reminder-time">${when}${place?'・'+esc(place):''}</div></div><button class="reminder-open" onclick="showDetail('${due.id}')">查看票券</button>`;
   el.classList.add('show');
 }
+function previewReminderTest(mins){
+  const el=$('#reminderBanner');if(!el)return;
+  el.classList.remove('show','reminder-soon','reminder-urgent');
+  let label='行程提醒',icon='⏰',when='';
+  if(mins<=60){label='即將開始';icon='🔔';el.classList.add('reminder-urgent');when='60 分鐘後'}
+  else if(mins<=180){label='3 小時內';icon='⏳';el.classList.add('reminder-urgent');when='3 小時後'}
+  else {label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon');when='1 天後'}
+  el.innerHTML=`<div><div class="reminder-label">${icon} ${label}</div><div class="reminder-title">測試票券：台北大巨蛋</div><div class="reminder-time">${when}・台北大巨蛋</div></div><button class="reminder-open" type="button">查看票券</button>`;
+  el.classList.add('show');
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function clearReminderTest(){
+  renderReminderBanner();
+}
+window.previewReminderTest=previewReminderTest;
+window.clearReminderTest=clearReminderTest;
+
 function storageUsageText(){
   try{
     let bytes=0;
