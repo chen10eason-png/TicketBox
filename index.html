@@ -446,7 +446,7 @@
       <label>活動提醒
         <select id="reminder">
           <option value="none">不提醒</option>
-          <option value="1440">1 天前</option>
+          <option value="1440" selected>1 天前</option>
           <option value="180">3 小時前</option>
           <option value="60">1 小時前</option>
           <option value="30">30 分鐘前</option>
@@ -612,7 +612,8 @@ function renderReminderBanner(){
   let diff=Math.max(0,new Date(due.date).getTime()-now), mins=Math.max(0,Math.round(diff/60000));
   let when=mins<60?`${mins} 分鐘後`:mins<1440?`${Math.max(1,Math.round(mins/60))} 小時後`:`${Math.max(1,Math.round(mins/1440))} 天後`;
   let label='行程提醒', icon='⏰';
-  if(mins<=60){label='1 小時內・即將開始';icon='🚨';el.classList.add('reminder-1h')}
+  if(diff<=60000){label='即將開始';icon='🚨';el.classList.add('reminder-1h')}
+  else if(mins<=60){label='1 小時內・即將開始';icon='🚨';el.classList.add('reminder-1h')}
   else if(mins<=180){label='3 小時內・準備出發';icon='⏳';el.classList.add('reminder-3h')}
   else if(mins<=1440){label='今天／明天就到了';icon='📣';el.classList.add('reminder-soon')}
 
