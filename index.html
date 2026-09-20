@@ -453,12 +453,12 @@
       <div class="twocol"><label>旅程名稱<input id="tripName" placeholder="例：高雄演唱會週末"></label><label>同行者<input id="companions" placeholder="例：爸爸、媽媽、小明"></label></div>
       <label>標籤<input id="tags" placeholder="例：冠軍賽, 跟家人, 第一次去"></label>
       <label>活動提醒
-        <select id="reminder">
+        <select id="reminder"><option value="all" selected>全部提醒（預設）</option>
           <option value="none">不提醒</option>
-          <option value="1440" selected>1 天前</option>
+          <option value="1440">1 天前</option>
           <option value="180">3 小時前</option>
           <option value="60">1 小時前</option>
-          <option value="30">30 分鐘前</option>
+          <option value="30">30 分鐘前</option><option value="1">1 分鐘前・即將開始</option>
         </select>
       </label>
       <label><input id="favorite" type="checkbox" style="width:auto;margin-right:7px">加入最愛</label>
@@ -490,7 +490,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.15';
+const APP_VERSION='1.9.16';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -580,7 +580,15 @@ function persist(){localStorage.setItem(KEY,JSON.stringify(data));renderAll()}
 function saveSettings(){localStorage.setItem(SETKEY,JSON.stringify(settings))}
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmtDate(v){if(!v)return'未設定時間';return new Date(v).toLocaleString('zh-TW',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}
-function effectiveStatus(x){if(x.status&&x.status!=='auto')return x.status;if(!x.date)return'upcoming';let now=new Date(), end=x.endDate?new Date(x.endDate):new Date(new Date(x.date).getTime()+4*3600000);if(now>end)return'used';return'upcoming'}
+function effectiveStatus(x){
+  if(x.status==='used')return 'used';
+  const start=x.date?new Date(x.date).getTime():NaN;
+  const endRaw=x.endDate||x.endTime||x.dateEnd||x.end;
+  const end=endRaw?new Date(endRaw).getTime():NaN;
+  const cutoff=Number.isFinite(end)?end:start;
+  if(Number.isFinite(cutoff)&&Date.now()>cutoff)return 'used';
+  return 'upcoming';
+}
 function statusText(s){return s==='used'?'已使用':s==='expired'?'過期':'未使用'}
 function daysUntil(v){
   const target=new Date(v),now=new Date();
@@ -718,7 +726,7 @@ async function syncTicketBackgroundReminder(ticket){
     const res=await fetch('https://mmpiuzwhhzauphqtnals.supabase.co/functions/v1/ticketbox-reminders',{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':'sb_publishable_fJhuMBo0qOD7Fs1Y8REc0g_r_VUhASp'},
-      body:JSON.stringify({action:'sync',deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:event.toISOString(),eventTimeDisplay:display,appUrl:(location.origin+location.pathname)})
+      body:JSON.stringify({action:'sync',deviceId,ticketId:ticket.id,eventName:ticket.name||'TicketBox 行程',location:routeLabel(ticket)||'',eventTime:event.toISOString(),eventTimeDisplay:display,appUrl:(location.origin+location.pathname),reminder:(ticket.reminder||'all')})
     });
     const result=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(result.detail||result.error||('Reminder sync '+res.status));
@@ -1028,7 +1036,7 @@ $('#form').onsubmit=async e=>{
     localStorage.setItem(KEY,JSON.stringify(next));
     data=next;
     renderAll();
-    $('#form').reset();coverData='';codeImageData='';
+    $('#form').reset();$('#reminder').value='all';coverData='';codeImageData='';
     $('#editDlg').close();
     // Refresh the in-app reminder immediately after save, then sync background push.
     renderReminderBanner();
