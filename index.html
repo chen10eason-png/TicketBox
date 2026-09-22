@@ -343,6 +343,30 @@
 .reminder-dots{display:flex;justify-content:center;gap:5px;margin:-6px 0 10px}
 .reminder-dot{width:6px;height:6px;border-radius:999px;border:0;padding:0;background:#cbd5e1}
 .reminder-dot.active{width:16px;background:#64748b}
+
+
+/* v1.9.17 Glass Bottom Navigation — visual only */
+.nav{
+  background:rgba(255,255,255,.70)!important;
+  -webkit-backdrop-filter:saturate(180%) blur(24px);
+  backdrop-filter:saturate(180%) blur(24px);
+  border-top:1px solid rgba(255,255,255,.78)!important;
+  box-shadow:0 -10px 30px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.88);
+}
+.nav .navin{
+  background:rgba(255,255,255,.18);
+}
+.nav button{
+  border-radius:16px;
+  transition:background .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.nav button.active{
+  background:rgba(255,255,255,.60)!important;
+  -webkit-backdrop-filter:blur(16px);
+  backdrop-filter:blur(16px);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.84),0 5px 16px rgba(15,23,42,.08);
+}
+
 </style>
 </head>
 <body>
@@ -490,7 +514,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.16';
+const APP_VERSION='1.9.17';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
