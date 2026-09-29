@@ -367,6 +367,32 @@
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.84),0 5px 16px rgba(15,23,42,.08);
 }
 
+
+/* v1.9.18 — stronger iOS-style Liquid Glass bottom navigation */
+.nav{
+  left:12px!important;right:12px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;
+  width:auto!important;
+  border:1px solid rgba(255,255,255,.72)!important;
+  border-radius:26px!important;
+  overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.68),rgba(244,248,255,.48))!important;
+  -webkit-backdrop-filter:blur(30px) saturate(190%) contrast(105%);
+  backdrop-filter:blur(30px) saturate(190%) contrast(105%);
+  box-shadow:0 12px 36px rgba(15,23,42,.16),inset 0 1px 0 rgba(255,255,255,.95),inset 0 -1px 0 rgba(255,255,255,.28)!important;
+}
+.nav:before{
+  content:"";position:absolute;left:7%;right:7%;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.95),transparent);
+  pointer-events:none;
+}
+.nav .navin{background:transparent!important;padding:6px!important}
+.nav button{border-radius:19px!important;position:relative;z-index:1}
+.nav button.active{
+  background:linear-gradient(180deg,rgba(255,255,255,.82),rgba(255,255,255,.48))!important;
+  border:1px solid rgba(255,255,255,.78)!important;
+  box-shadow:0 5px 16px rgba(15,23,42,.10),inset 0 1px 1px rgba(255,255,255,.96)!important;
+}
+
 </style>
 </head>
 <body>
@@ -446,7 +472,8 @@
           </div>
         </div>
       </div>
-      <div class="twocol"><label>座位 / 車次<input id="seat" placeholder="例：112區 8排16號"></label><label>票價<input id="price" type="number" min="0" placeholder="0"></label></div>
+      <div class="twocol" id="transportNumberRow"><label id="transportNumberLabel">車次 / 航班編號<input id="transportNumber" placeholder="例：1234 / BR105"></label><label>座位<input id="seat" placeholder="例：12A / 8車16號"></label></div>
+      <div class="twocol"><label>票價<input id="price" type="number" min="0" placeholder="0"></label><span></span></div>
       <div class="editor-help">新增票券改成分頁式編輯，畫面不會整頁上下滑動；上方三個分頁可直接切換。</div>
     </section>
     <section class="editor-page" data-edit-page="media">
@@ -514,7 +541,7 @@
 </div></dialog>
 
 <script>
-const APP_VERSION='1.9.17';
+const APP_VERSION='1.9.18';
 const KEY='ticketbox-v11', OLD='ticketbox-v1', SETKEY='ticketbox-settings-v11', METAKEY='ticketbox-meta', SNAPKEY='ticketbox-pre-v12-snapshot';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const icons={棒球:'⚾️',籃球:'🏀',演唱會:'🎤',音樂祭:'🎵',交通:'🚆',機票:'✈️',住宿:'🏨',展覽:'🖼️',景點:'📍',博物館:'🏛️',電影:'🎬',樂園:'🎡',活動:'🎫',其他:'🎟️'};
@@ -599,7 +626,7 @@ let selectedReviewMonth='';
 let data=loadData(), settings=JSON.parse(localStorage.getItem(SETKEY)||'{"privacy":true}'), filterType='', quickMode='', calCursor=new Date(), coverData='', codeImageData=''; ensureUpgradeSnapshot(); data=data.map(migrateTicket); localStorage.setItem(KEY,JSON.stringify(data));
 function loadData(){try{let v=JSON.parse(localStorage.getItem(KEY)||'null');if(Array.isArray(v))return v;let old=JSON.parse(localStorage.getItem(OLD)||'[]');return old.map(x=>({...x,endDate:'',status:'auto',code:'',tags:'',favorite:false,cover:'',codeImage:'',createdAt:new Date().toISOString()}))}catch(e){return[]}}
 function ensureUpgradeSnapshot(){try{if(!localStorage.getItem(SNAPKEY)){let raw=localStorage.getItem(KEY)||localStorage.getItem(OLD);if(raw)localStorage.setItem(SNAPKEY,raw)}localStorage.setItem(METAKEY,JSON.stringify({schema:15,appVersion:APP_VERSION,lastOpened:new Date().toISOString()}))}catch(e){}}
-function migrateTicket(x){return {...x,tripName:x.tripName||'',companions:x.companions||'',reminder:x.reminder||'none',origin:x.origin||'',destination:x.destination||'',updatedAt:x.updatedAt||x.createdAt||new Date().toISOString()}}
+function migrateTicket(x){return {...x,tripName:x.tripName||'',companions:x.companions||'',reminder:x.reminder||'none',origin:x.origin||'',destination:x.destination||'',transportNumber:x.transportNumber||'',updatedAt:x.updatedAt||x.createdAt||new Date().toISOString()}}
 function persist(){localStorage.setItem(KEY,JSON.stringify(data));renderAll()}
 function saveSettings(){localStorage.setItem(SETKEY,JSON.stringify(settings))}
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -628,7 +655,17 @@ function newTicketId(){
 }
 function isRouteType(type){return type==='交通'||type==='機票'}
 function routeLabel(x){if(isRouteType(x.type)&&(x.origin||x.destination))return `${x.origin||'未填起點'} → ${x.destination||'未填終點'}`;return x.place||''}
-function syncPlaceFields(){const route=isRouteType($('#type').value);$('#singlePlaceLabel').style.display=route?'none':'block';$('#routeFields').style.display=route?'block':'none'}
+function syncTransportNumberField(){
+  const type=$('#type')?.value||'';
+  const row=$('#transportNumberRow'),label=$('#transportNumberLabel');
+  if(!row||!label)return;
+  const route=isRouteType(type);
+  row.style.display=route?'grid':'none';
+  label.childNodes[0].nodeValue=type==='機票'?'航班編號':'車次';
+  const input=$('#transportNumber');
+  if(input)input.placeholder=type==='機票'?'例：BR105 / CI100':'例：117 / 1234';
+}
+function syncPlaceFields(){syncTransportNumberField();const route=isRouteType($('#type').value);$('#singlePlaceLabel').style.display=route?'none':'block';$('#routeFields').style.display=route?'block':'none'}
 function reminderText(v){return v==='1440'?'1 天前':v==='180'?'3 小時前':v==='60'?'1 小時前':v==='30'?'30 分鐘前':'不提醒'}
 let dismissedReminderIds=new Set();
 function dismissReminder(id){if(id)dismissedReminderIds.add(id);renderReminderBanner()}
@@ -813,7 +850,7 @@ function storageUsageText(){
     return (bytes/1048576).toFixed(1)+' MB';
   }catch(e){return '無法計算'}
 }
-function ticketMatches(x){let q=$('#search').value.trim().toLowerCase();if(filterType&&x.type!==filterType)return false;let st=effectiveStatus(x), now=new Date(), dt=x.date?new Date(x.date):null;if(quickMode==='today'&&(!dt||dt.toDateString()!==now.toDateString()))return false;if(quickMode==='week'&&(!dt||dt<now||dt-now>7*86400000))return false;if(quickMode==='unused'&&st!=='upcoming')return false;if(quickMode==='fav'&&!x.favorite)return false;return !q||[x.type,x.name,x.place,x.origin,x.destination,x.seat,x.tags,x.note].join(' ').toLowerCase().includes(q)}
+function ticketMatches(x){let q=$('#search').value.trim().toLowerCase();if(filterType&&x.type!==filterType)return false;let st=effectiveStatus(x), now=new Date(), dt=x.date?new Date(x.date):null;if(quickMode==='today'&&(!dt||dt.toDateString()!==now.toDateString()))return false;if(quickMode==='week'&&(!dt||dt<now||dt-now>7*86400000))return false;if(quickMode==='unused'&&st!=='upcoming')return false;if(quickMode==='fav'&&!x.favorite)return false;return !q||[x.type,x.name,x.place,x.origin,x.destination,x.transportNumber,x.seat,x.tags,x.note].join(' ').toLowerCase().includes(q)}
 function renderHero(){let now=new Date(),u=data.filter(x=>{if(!x.date||effectiveStatus(x)!=='upcoming')return false;let t=new Date(x.date).getTime();return Number.isFinite(t)&&t>=now.getTime()}).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime()).slice(0,5),t=$('#upcomingTrack'),d=$('#upcomingDots');if(!u.length){t.innerHTML='<div class="upcoming-slide"><section class="hero"><small>下一張票</small><h2>還沒有即將使用的票券</h2><div class="meta">按右下角 ＋，把下一次旅行、比賽或演出放進 TicketBox。</div></section></div>';d.innerHTML='';return}t.innerHTML=u.map((x,i)=>`<div class="upcoming-slide"><section class="hero" onclick="showDetail('${x.id}')"><span class="upcoming-count">${i+1} / ${u.length}</span><small>${i?'接下來':'下一張票'}・${esc(x.type)}</small><h2>${esc(x.name)}</h2><div class="meta">${fmtDate(x.date)}${routeLabel(x)?'｜'+esc(routeLabel(x)):''}</div><div class="pills">${x.seat?`<span class="pill">${esc(x.seat)}</span>`:''}<span class="pill">${daysUntil(x.date)}</span>${x.favorite?'<span class="pill">❤️ 最愛</span>':''}</div>${mediaSrc(x.codeImage)?`<button class="hero-quick" onclick="event.stopPropagation();openQRZoom('${x.id}')">▣ 快速開票</button>`:''}</section></div>`).join('');d.innerHTML=u.length>1?u.map((_,i)=>`<button class="upcoming-dot ${i?'':'active'}" onclick="goUpcoming(${i})"></button>`).join(''):''}
 function goUpcoming(i){let t=$('#upcomingTrack');t.scrollTo({left:i*t.clientWidth,behavior:'smooth'})}
 function updateUpcomingDots(){let t=$('#upcomingTrack');if(!t||!t.clientWidth)return;let i=Math.round(t.scrollLeft/t.clientWidth);$$('.upcoming-dot').forEach((x,n)=>x.classList.toggle('active',n===i))}
@@ -941,7 +978,7 @@ function renderStats(){
 }
 
 function renderAll(){renderReminderBanner();renderHero();renderFilterBar();renderTickets();renderCalendar();renderTrips();renderMemories();renderStats()}
-function openEdit(id=''){let x=data.find(v=>v.id===id);$('#formTitle').textContent=x?'編輯票券':'新增票券';$('#editId').value=x?.id||'';$('#type').value=x?.type||'棒球';syncPlaceFields();$('#status').value=x?.status||'auto';$('#name').value=x?.name||'';$('#date').value=x?.date||'';$('#endDate').value=x?.endDate||'';$('#place').value=x?.place||'';$('#origin').value=x?.origin||'';$('#destination').value=x?.destination||'';syncPlaceFields();$('#seat').value=x?.seat||'';$('#price').value=x?.price||'';$('#code').value=x?.code||'';$('#tripName').value=x?.tripName||'';$('#companions').value=x?.companions||'';$('#tags').value=x?.tags||'';$('#reminder').value=x ? (x.reminder||'all') : 'all';$('#favorite').checked=!!x?.favorite;$('#note').value=x?.note||'';coverData=x?.cover||'';codeImageData=x?.codeImage||'';setPreview('#coverPreview',mediaSrc(coverData));setPreview('#codePreview',mediaSrc(codeImageData));syncMediaWraps();setEditTab('basic');$('#editDlg').showModal()}
+function openEdit(id=''){let x=data.find(v=>v.id===id);$('#formTitle').textContent=x?'編輯票券':'新增票券';$('#editId').value=x?.id||'';$('#type').value=x?.type||'棒球';syncPlaceFields();$('#status').value=x?.status||'auto';$('#name').value=x?.name||'';$('#date').value=x?.date||'';$('#endDate').value=x?.endDate||'';$('#place').value=x?.place||'';$('#origin').value=x?.origin||'';$('#destination').value=x?.destination||'';syncPlaceFields();$('#transportNumber').value=x?.transportNumber||'';$('#seat').value=x?.seat||'';$('#price').value=x?.price||'';$('#code').value=x?.code||'';$('#tripName').value=x?.tripName||'';$('#companions').value=x?.companions||'';$('#tags').value=x?.tags||'';$('#reminder').value=x ? (x.reminder||'all') : 'all';$('#favorite').checked=!!x?.favorite;$('#note').value=x?.note||'';coverData=x?.cover||'';codeImageData=x?.codeImage||'';setPreview('#coverPreview',mediaSrc(coverData));setPreview('#codePreview',mediaSrc(codeImageData));syncMediaWraps();setEditTab('basic');$('#editDlg').showModal()}
 function setPreview(sel,val){let el=$(sel);if(val){el.style.display='block';el.style.backgroundImage=`url('${val}')`}else{el.style.display='none';el.style.backgroundImage='none'}}
 async function fileToData(file,max=1200,quality=.78){
   if(!file) throw new Error('NO_FILE');
@@ -1050,6 +1087,7 @@ $('#form').onsubmit=async e=>{
       place:route?'':$('#place').value.trim(),
       origin:route?$('#origin').value.trim():'',
       destination:route?$('#destination').value.trim():'',
+      transportNumber:route?$('#transportNumber').value.trim():'',
       seat:$('#seat').value.trim(),price:$('#price').value,code:$('#code').value.trim(),
       tripName:$('#tripName').value.trim(),companions:$('#companions').value.trim(),
       tags:$('#tags').value.trim(),reminder:$('#reminder').value,favorite:$('#favorite').checked,
@@ -1073,7 +1111,7 @@ $('#form').onsubmit=async e=>{
     if(saveBtn){saveBtn.disabled=false;saveBtn.textContent=saveBtn.dataset.oldText||'儲存票券'}
   }
 };
-async function showDetail(id){let x=data.find(v=>v.id===id);if(!x)return;let st=effectiveStatus(x), coverSrc=await mediaGet(x.cover||''), codeSrc=await mediaGet(x.codeImage||''), hasCode=!!codeSrc;$('#detailContent').innerHTML=`<div class="detailcover" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div class="detailbody ${settings.privacy?'privacy':''}" id="detailBody"><div style="display:flex;justify-content:space-between;gap:10px"><div><h2>${x.favorite?'❤️ ':''}${esc(x.name)}</h2><div class="muted">${esc(x.type)}・${statusText(st)}</div></div><button class="close" onclick="detailDlg.close()">×</button></div><div class="detailgrid"><div class="detailcell">日期時間<b>${fmtDate(x.date)}</b></div><div class="detailcell">地點 / 路線<b>${esc(routeLabel(x)||'—')}</b></div><div class="detailcell">座位 / 車次<b>${esc(x.seat||'—')}</b></div><div class="detailcell">票價<b>${x.price?'NT$ '+Number(x.price).toLocaleString():'—'}</b></div></div>${x.tripName?`<div class="muted" style="margin-top:12px">🧳 ${esc(x.tripName)}</div>`:''}${x.companions?`<div class="muted" style="margin-top:6px">👥 ${esc(x.companions)}</div>`:''}${x.tags?`<div class="muted" style="margin-top:6px">🏷️ ${esc(x.tags)}</div>`:''}${x.reminder&&x.reminder!=='none'?`<div class="muted" style="margin-top:6px">⏰ ${reminderText(x.reminder)}</div>`:''}${x.note?`<div style="margin-top:14px;line-height:1.6">${esc(x.note).replace(/\n/g,'<br>')}</div>`:''}${hasCode?`<img class="codeimg" id="detailCode" src="${codeSrc}" alt="票券 QR 或條碼"><div class="privacyHint" id="privacyHint">${settings.privacy?'票碼目前已隱藏':'票碼目前已顯示'}</div><button class="code-toggle-btn" id="codeToggleBtn" type="button" onclick="toggleCodeVisibility()">${settings.privacy?'👁️ 顯示 QR / 條碼':'🙈 隱藏 QR / 條碼'}</button><button class="code-zoom-btn" type="button" onclick="openQRZoom('${x.id}')">🔍 放大顯示 QR / 條碼</button>`:''}<div class="actions">${x.place?`<button class="secondary" onclick="openMap('${encodeURIComponent(isRouteType(x.type)?(x.destination||x.origin):x.place)}')">導航</button>`:''}<button class="secondary" onclick="downloadICS('${x.id}')">加入行事曆</button><button class="secondary" onclick="shareTicket('${x.id}')">分享</button></div><div class="actions"><button class="secondary" onclick="detailDlg.close();openEdit('${x.id}')">編輯</button><button class="secondary" onclick="duplicateTicket('${x.id}')">複製</button></div><div class="actions"><button class="secondary" onclick="toggleUsed('${x.id}')">${st==='used'?'標記未使用':'標記已使用'}</button><button class="danger" onclick="deleteTicket('${x.id}')">刪除</button></div></div>`;$('#detailDlg').showModal();if(hasCode)$('#detailCode').onclick=()=>toggleCodeVisibility()}
+async function showDetail(id){let x=data.find(v=>v.id===id);if(!x)return;let st=effectiveStatus(x), coverSrc=await mediaGet(x.cover||''), codeSrc=await mediaGet(x.codeImage||''), hasCode=!!codeSrc;$('#detailContent').innerHTML=`<div class="detailcover" ${mediaSrc(x.cover)?`style="background-image:url('${mediaSrc(x.cover)}')"`:''}>${mediaSrc(x.cover)?'':icons[x.type]||'🎟️'}</div><div class="detailbody ${settings.privacy?'privacy':''}" id="detailBody"><div style="display:flex;justify-content:space-between;gap:10px"><div><h2>${x.favorite?'❤️ ':''}${esc(x.name)}</h2><div class="muted">${esc(x.type)}・${statusText(st)}</div></div><button class="close" onclick="detailDlg.close()">×</button></div><div class="detailgrid"><div class="detailcell">日期時間<b>${fmtDate(x.date)}</b></div><div class="detailcell">地點 / 路線<b>${esc(routeLabel(x)||'—')}</b></div>${isRouteType(x.type)?`<div class="detailcell">${x.type==='機票'?'航班編號':'車次'}<b>${esc(x.transportNumber||'—')}</b></div>`:''}<div class="detailcell">座位<b>${esc(x.seat||'—')}</b></div><div class="detailcell">票價<b>${x.price?'NT$ '+Number(x.price).toLocaleString():'—'}</b></div></div>${x.tripName?`<div class="muted" style="margin-top:12px">🧳 ${esc(x.tripName)}</div>`:''}${x.companions?`<div class="muted" style="margin-top:6px">👥 ${esc(x.companions)}</div>`:''}${x.tags?`<div class="muted" style="margin-top:6px">🏷️ ${esc(x.tags)}</div>`:''}${x.reminder&&x.reminder!=='none'?`<div class="muted" style="margin-top:6px">⏰ ${reminderText(x.reminder)}</div>`:''}${x.note?`<div style="margin-top:14px;line-height:1.6">${esc(x.note).replace(/\n/g,'<br>')}</div>`:''}${hasCode?`<img class="codeimg" id="detailCode" src="${codeSrc}" alt="票券 QR 或條碼"><div class="privacyHint" id="privacyHint">${settings.privacy?'票碼目前已隱藏':'票碼目前已顯示'}</div><button class="code-toggle-btn" id="codeToggleBtn" type="button" onclick="toggleCodeVisibility()">${settings.privacy?'👁️ 顯示 QR / 條碼':'🙈 隱藏 QR / 條碼'}</button><button class="code-zoom-btn" type="button" onclick="openQRZoom('${x.id}')">🔍 放大顯示 QR / 條碼</button>`:''}<div class="actions">${x.place?`<button class="secondary" onclick="openMap('${encodeURIComponent(isRouteType(x.type)?(x.destination||x.origin):x.place)}')">導航</button>`:''}<button class="secondary" onclick="downloadICS('${x.id}')">加入行事曆</button><button class="secondary" onclick="shareTicket('${x.id}')">分享</button></div><div class="actions"><button class="secondary" onclick="detailDlg.close();openEdit('${x.id}')">編輯</button><button class="secondary" onclick="duplicateTicket('${x.id}')">複製</button></div><div class="actions"><button class="secondary" onclick="toggleUsed('${x.id}')">${st==='used'?'標記未使用':'標記已使用'}</button><button class="danger" onclick="deleteTicket('${x.id}')">刪除</button></div></div>`;$('#detailDlg').showModal();if(hasCode)$('#detailCode').onclick=()=>toggleCodeVisibility()}
 
 function toggleCodeVisibility(){
   const body=$('#detailBody'), hint=$('#privacyHint'), btn=$('#codeToggleBtn');
